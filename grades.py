@@ -37,7 +37,7 @@ def dict_factory(cursor, row):
     return d
 
 # Connect to SQLite 3
-conn = sqlite3.connect(DIRNAME+"/history.db")
+conn = sqlite3.connect(DIRNAME+"/database.db")
 conn.row_factory = dict_factory
 sqlc = conn.cursor()
 
@@ -111,11 +111,11 @@ class User:
         return user
     
     @classmethod
-    def from_attributes(self, username, name, password):
+    def from_attributes(self, username, name, password, email):
         user = self()
         user.username = username
         user.name = name
-        user.email = None
+        user.email = email
         user.password = password
         user.enabled = 1
         return user
@@ -285,7 +285,7 @@ def get_num_blocks():
             count += 1
     return count
 
-def parse_page(url_part):
+def course_from_page(url_part):
     """parses the class page at the provided url and returns a course object for it"""
     page = br.open(get_base_url() + url_part)
     soup = BeautifulSoup(page)
@@ -295,19 +295,28 @@ def parse_page(url_part):
     # Based on 2 semester per year system
     # Must change if using trimesters or quarters
     # Semester grade
-    atag = soup.findAll(name='a', title=re.compile(r"^Task: Semester Grade"), limit=1)[0]
+    atags = soup.findAll(name='a', title=re.compile(r"^Task: Semester Grade"), limit=1)
+    if len(atags) < 1:
+        return False
+    atag = atags[0]
     # if it doesn't exist, try progress report 2
     spans = atag.findAll(name='span', attrs={'class':'grayText'}, limit=1)
     if len(spans) > 0:
         letter_grade = atag.contents[0].split('<br')[0]
     else:
-        atag = soup.findAll(name='a', title=re.compile(r"^Task: Progress Grade 2"), limit=1)[0]
+        atags = soup.findAll(name='a', title=re.compile(r"^Task: Progress Grade 2"), limit=1)
+        if len(atags) < 1:
+            return False
+        atag = atags[0]
         # If it doesn't exist, try progress report 1
         spans = atag.findAll(name='span', attrs={'class':'grayText'}, limit=1)
         if len(spans) > 0:
             letter_grade = atag.contents[0].split('<br')[0]
         else:
-            atag = soup.findAll(name='a', title=re.compile(r"^Task: Progress Grade 1"), limit=1)[0]
+            atags = soup.findAll(name='a', title=re.compile(r"^Task: Progress Grade 1"), limit=1)
+            if len(atags) < 1:
+                return False
+            atag = atags[0]
             spans = atag.findAll(name='span', attrs={'class':'grayText'}, limit=1)
             if len(spans) > 0:
                 letter_grade = atag.contents[0].split('<br')[0]
@@ -341,7 +350,9 @@ def get_grades():
             print("Grabbing grades of schedule from semester...")
             for num, link in enumerate(class_links):
                 if link is not None:
-                    grades.append(parse_page(link))
+                    course = course_from_page(link)
+                    if course:
+                        grades.append(course)
             print("Got all grades...")
             return grades
     except:
@@ -378,8 +389,8 @@ def get_grade_string(grades, user):
             if diff and diff < 100.0:
                 grade_changed = True
                 change_word = ('up' if diff > 0.0 else 'down')
-                changed_grade_string += "\n".join([ grade_string,
-                                                    "" + change_word + " " + str(abs(diff)) + "% (old: " + str(c.grade - diff) + "%)",
+                changed_grade_string += "\n".join([ grade_string + " " + change_word + " " + str(abs(diff)) + "% (old: " + str(c.grade - diff) + "%)",
+                                                    ""
                                                   ])
             else:
                 other_grade_string += grade_string + "\n"
@@ -464,44 +475,12 @@ def main():
                 else:
                     # Get users
                     for user in User.get_all_users():
-
-                        login(user, True)
-
-                        grades = get_grades()
-                        if grades == False:
-                            print("Something went wrong")
-                            continue
-
-                        user.create_row_if_not_exists()
-                        user.save_grades_to_database(grades)
-
-                        # Print before saving to show changes
-                        final_grades = get_grade_string(grades, user)
-                        # If grade changed and no send email is false, send email
-                        if options.email or (not options.noemail and final_grades[0]):
-                            send_grade_email(user.email, final_grades[1])
-
-                        print(final_grades[1])
+                        do_task(user, False)
 
             # Else if specified username + password
             else:
-                user = User.from_attributes(options.username, 'User', options.password)
-
-                login(user, False)
-
-                grades = get_grades()
-                if grades == False:
-                    print("Something went wrong")
-                else:
-
-                    user.create_row_if_not_exists()
-                    user.save_grades_to_database(grades)
-
-                    final_grades = get_grade_string(grades, user)
-                    if options.email:
-                        send_grade_email(options.email, final_grades[1])
-
-                    print(final_grades[1])
+                user = User.from_attributes(options.username, 'User', options.password, options.email or "")
+                do_task(user, True)
 
         sqlc.close()
         conn.close()
@@ -509,6 +488,27 @@ def main():
     except:
         full = traceback.format_exc()
         logging.warning("Exception: %s" % full)
+
+def do_task(user, isSingle):
+    login(user, not isSingle)
+
+    grades = get_grades()
+    if grades == False:
+        print("Something went wrong")
+        return
+
+    if not isSingle:
+        user.create_row_if_not_exists()
+        user.save_grades_to_database(grades)
+
+    # Print before saving to show changes
+    # array: [ grade_changed, string ]
+    final_grades = get_grade_string(grades, user)
+    # If grade changed and no send email is false, send email
+    if (isSingle and user.email) or (not isSingle and (options.email or (not options.noemail and final_grades[0]))):
+        send_grade_email(user.email, final_grades[1])
+
+    print(final_grades[1])
 
 if __name__ == '__main__':
     main()
