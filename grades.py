@@ -59,7 +59,8 @@ parser.add_option('-c', '--check', action='store', dest='check', metavar='USER_D
 parser.add_option('-v', '--valid', action='store', dest='valid', metavar='USER_DICTIONARY', help='Verify username and password valid pair')
 
 # OTHER
-parser.add_option('-q', '--quiet', action='store_true', dest='noemail', help='force to not send email even if grade changed')
+parser.add_option('-q', '--quiet', action='store_true', dest='quiet', help='force to not send email even if grade changed')
+parser.add_option('-l', '--loud', action='store_true', dest='loud', help='force to send email even if grade not changed')
 parser.add_option('-s', '--setup', action='store_true', dest='setup', help='Setup accounts database')
 parser.add_option('-z', '--salt', action='store', dest='z', help='Encryption salt')
 
@@ -377,7 +378,7 @@ def get_grades():
         print("Grabbing semester...")
         term = get_term()
         if term == -1:
-            print("Failed to get term, ignoring user")
+            print("Failed to get term, maybe password issue, ignoring user")
             return False
         else:
             print("Grabbing schedule...")
@@ -550,24 +551,28 @@ def main():
         logging.warning("Exception: %s" % full)
 
 def do_task(user, isSingle):
-    login(user, not isSingle)
+    try:
+        login(user, not isSingle)
 
-    grades = get_grades()
-    if grades == False:
-        return
+        grades = get_grades()
+        if grades == False:
+            return
 
-    if not isSingle:
-        user.create_row_if_not_exists()
-        user.save_grades_to_database(grades)
+        if not isSingle:
+            user.create_row_if_not_exists()
+            user.save_grades_to_database(grades)
 
-    # Print before saving to show changes
-    # array: [ grade_changed, string ]
-    final_grades = get_grade_string(grades, user)
-    # If grade changed and no send email is false, send email
-    if (isSingle and user.email) or (not isSingle and (options.email or (not options.noemail and final_grades[0]))):
-        send_grade_email(user.email, final_grades[1])
+        # Print before saving to show changes
+        # array: [ grade_changed, string ]
+        final_grades = get_grade_string(grades, user)
+        # If grade changed and no send email is false, send email
+        if (isSingle and user.email) or (not isSingle and (options.loud or (not options.quiet and final_grades[0]))):
+            send_grade_email(user.email, final_grades[1])
 
-    print(final_grades[1])
+        print(final_grades[1])
+    except:
+        print("Doing task failed, probably login information failed?")
+        traceback.print_exc()
 
 if __name__ == '__main__':
     main()
