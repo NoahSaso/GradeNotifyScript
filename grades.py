@@ -42,23 +42,22 @@ conn.row_factory = dict_factory
 sqlc = conn.cursor()
 
 parser = OptionParser(description='Scrapes grades from infinite campus website')
-parser.add_option('-u', '--username', action='store', dest='username', help='specify username to check (probably student id)')
-parser.add_option('-p', '--password', action='store', dest='password', help='password for account')
-parser.add_option('-e', '--email', action='store', dest='email', help='if given with username and password, email results to this email')
-parser.add_option('-n', '--noemail', action='store_true', dest='noemail', help='force to not send email even if grade changed')
-parser.add_option('-s', '--setup', action='store_true', dest='setup', help='Setup accounts database')
 
-# Example argument: '{"name": "Noah Saso", "username": "USERNAME_HERE", "password": "PASSWORD_HERE", "email": "noahsaso@gmail.com"}'
-parser.add_option('-a', '--add', action='store', dest='add', metavar='USER_DICTIONARY', help='Adds user or enables if already exists')
-
+# USER
+# Example argument: '{"name": "Noah Saso", "username": "USERNAME_HERE", "password": "PASSWORD_HERE", "email": "EMAIL_HERE"}'
+parser.add_option('-a', '--add', action='store', dest='add', metavar='USER_DICTIONARY', help='Adds user')
+parser.add_option('-e', '--enable', action='store', dest='enable', metavar='USERNAME', help='Enables user')
 parser.add_option('-d', '--disable', action='store', dest='disable', metavar='USERNAME', help='Disables user')
-
-# Example argument: '{"username": "USERNAME_HERE", "key": "email", "value": "new_email@gmail.com"}'
+# Example argument: '{"username": "USERNAME_HERE", "key": "email", "value": "NEW_EMAIL_HERE"}'
 parser.add_option('-m', '--modify', action='store', dest='modify', metavar='USER_DICTIONARY', help='Modifies attribute of user')
-
 parser.add_option('-x', '--exists', action='store', dest='exists', metavar='USERNAME', help='Returns if user exists')
-
 parser.add_option('-g', '--get', action='store_true', dest='get', help='Get list of users')
+# Example argument: '{"username": "USERNAME_HERE", "password": "PASSWORD_HERE", "email": "EMAIL_HERE"}'
+parser.add_option('-c', '--check', action='store', dest='check', metavar='USER_DICTIONARY', help='Check specific user')
+
+# OTHER
+parser.add_option('-q', '--quiet', action='store_true', dest='noemail', help='force to not send email even if grade changed')
+parser.add_option('-s', '--setup', action='store_true', dest='setup', help='Setup accounts database')
 parser.add_option('-z', '--salt', action='store', dest='z', help='Encryption salt')
 
 (options, args) = parser.parse_args()
@@ -81,8 +80,8 @@ class Course:
 
 class User:
     @classmethod
-    def get_all_users(self):
-        sqlc.execute("SELECT * FROM accounts")
+    def get_all_users(self, where_clause):
+        sqlc.execute("SELECT * FROM accounts{}".format(" {}".format(where_clause) if where_clause else ''))
         users = []
         for user_row in sqlc.fetchall():
             users.append(User.from_dict(user_row))
@@ -106,8 +105,8 @@ class User:
     def from_dict(self, row):
         user = self()
         user.username = row['username']
-        user.name = row.get('name', 'No Name')
-        user.email = row.get('email', 'No Email')
+        user.name = row.get('name', 'Unknown Name')
+        user.email = row.get('email', '')
         user.password = row['password']
         user.enabled = row.get('enabled', 1)
         return user
@@ -196,7 +195,7 @@ def get_schedule_page_url():
     dom = minidom.parse(school_data)
 
     nodes = dom.getElementsByTagName('Student')
-    if nodes.count < 1:
+    if len(nodes) < 1:
         return False
     node = nodes[0]
 
@@ -205,13 +204,13 @@ def get_schedule_page_url():
     last_name = node.getAttribute('lastName')
 
     nodes = dom.getElementsByTagName('Calendar')
-    if nodes.count < 1:
+    if len(nodes) < 1:
         return False
     node = nodes[0]
     school_id = node.getAttribute('schoolID')
 
     nodes = dom.getElementsByTagName('ScheduleStructure')
-    if nodes.count < 1:
+    if len(nodes) < 1:
         return False
     node = nodes[0]
     calendar_id = node.getAttribute('calendarID')
@@ -232,12 +231,18 @@ def get_class_links(term):
     """loops through the links in the schedule page
     and adds the grade page links to the link_list array
     """
-    r = br.open(get_schedule_page_url())
+    schedule_page_url = get_schedule_page_url()
+    if not schedule_page_url:
+        return False
+    r = br.open(schedule_page_url)
     soup = BeautifulSoup(r)
     table = soup.find('table', cellpadding=2, bgcolor='#A0A0A0')
 
     # Get links to stuff
     link_list = []
+    num_blocks = get_num_blocks()
+    if num_blocks == False:
+        return False
     for row in table.findAll('tr')[1:get_num_blocks()+2]:
         # Use term array and determine afterwards to use first or second term
         terms = []
@@ -256,7 +261,10 @@ def get_class_links(term):
 
 def get_term():
     """returns the current term"""
-    r = br.open(get_schedule_page_url()) #opens schdule page
+    schedule_page_url = get_schedule_page_url()
+    if not schedule_page_url:
+        return -1
+    r = br.open(schedule_page_url)
     soup = BeautifulSoup(r)
     terms = soup.findAll('th', {'class':'scheduleHeader'}, align='center')
     term_dates = []
@@ -278,8 +286,11 @@ def get_term():
 
 def get_num_blocks():
     """returns the number of blocks per day"""
-    schedule_page = br.open(get_schedule_page_url()) #opens schdule page
-    soup = BeautifulSoup(schedule_page)
+    schedule_page_url = get_schedule_page_url()
+    if not schedule_page_url:
+        return False
+    r = br.open(schedule_page_url)
+    soup = BeautifulSoup(r)
     blocks = soup.findAll('th', {'class':'scheduleHeader'}, align='center')
     count = 0
     for block in blocks:
@@ -344,11 +355,13 @@ def get_grades():
         print("Grabbing semester...")
         term = get_term()
         if term == -1:
-            print("Failed to get term, ignoring person")
+            print("Failed to get term, ignoring user")
             return False
         else:
             print("Grabbing schedule...")
             class_links = get_class_links(term)
+            if not class_links:
+                return False
             print("Grabbing grades of schedule from semester...")
             for num, link in enumerate(class_links):
                 if link is not None:
@@ -413,14 +426,13 @@ def main():
         # argument is dictionary
         elif options.add or options.modify:
             user_data = json.loads(options.add or options.modify)
-            username = user_data['username'] or 'EMPTY_USER'
-            if username is 'EMPTY_USER':
+            username = user_data['username'] or ''
+            if not username:
                 print("Please provide a username to add or modify")
             else:
                 if User.exists(username):
                     if options.add:
-                        user = User.enable_account(username)
-                        print("Enabled {}".format(user))
+                        print("A user with username '{}' already exists. Please use the -e flag instead".format(username))
                     else:
                         user = User.from_username(username)
                         new_value = user_data['value']
@@ -441,21 +453,24 @@ def main():
                             user = User.from_dict(user_data)
                             user.password = hexlify(encrypt(options.z, user.password.encode('utf8')))
                             user.create_account()
-                            print("Created {}".format(user))
+                            print("Added {}".format(user))
                     else:
                         print("Please provide name, username, password, and email")
                 elif options.modify:
                     print("This user does not exist")
         # argument is username
-        elif options.disable or options.exists:
-            username = options.disable or options.exists
+        elif options.enable or options.disable or options.exists:
+            username = options.enable or options.disable or options.exists
             if not User.exists(username):
-                if options.disable:
-                    print("Could not find user with given username ({})".format(username))
+                if options.enable or options.disable:
+                    print("Could not find user with username '{}'".format(username))
                 elif options.exists:
                     print("0")
             else:
-                if options.disable:
+                if options.enable:
+                    user = User.enable_account(username)
+                    print("Enabled {}".format(user))
+                elif options.disable:
                     user = User.disable_account(username)
                     print("Disabled {}".format(user))
                 elif options.exists:
@@ -463,7 +478,7 @@ def main():
         elif options.get:
             disabled_users = []
             enabled_users = []
-            for user in User.get_all_users():
+            for user in User.get_all_users(''):
                 if user.enabled == 1:
                     enabled_users.append(str(user))
                 else:
@@ -475,23 +490,19 @@ def main():
                                     ])
             print(final_string)
         else:
-            # If gave username but no password or vice versa
-            if (options.username and not options.password) or (options.password and not options.username):
-                print("Please provide both the username and password for this account to check.")
-            # If neither username nor password given, do loop of all
-            elif not options.username and not options.password:
+            # If not checking single
+            if not options.check:
                 # If forgot encryption salt, tell them
                 if not options.z:
                     print("Please include the encryption salt")
                 else:
                     # Get users
-                    for user in User.get_all_users():
+                    for user in User.get_all_users('WHERE enabled = 1'):
                         do_task(user, False)
 
-            # Else if specified username + password
+            # Else if specified check user
             else:
-                user = User.from_attributes(options.username, 'User', options.password, options.email or "")
-                do_task(user, True)
+                do_task(User.from_dict(json.loads(options.check)), True)
 
         sqlc.close()
         conn.close()
@@ -505,7 +516,6 @@ def do_task(user, isSingle):
 
     grades = get_grades()
     if grades == False:
-        print("Something went wrong")
         return
 
     if not isSingle:
