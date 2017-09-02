@@ -48,12 +48,15 @@ parser = OptionParser(description='Scrapes grades from infinite campus website')
 parser.add_option('-a', '--add', action='store', dest='add', metavar='USER_DICTIONARY', help='Adds user')
 parser.add_option('-e', '--enable', action='store', dest='enable', metavar='USERNAME', help='Enables user')
 parser.add_option('-d', '--disable', action='store', dest='disable', metavar='USERNAME', help='Disables user')
+parser.add_option('-r', '--remove', action='store', dest='remove', metavar='USERNAME', help='Removes user from database')
 # Example argument: '{"username": "USERNAME_HERE", "key": "email", "value": "NEW_EMAIL_HERE"}'
 parser.add_option('-m', '--modify', action='store', dest='modify', metavar='USER_DICTIONARY', help='Modifies attribute of user')
 parser.add_option('-x', '--exists', action='store', dest='exists', metavar='USERNAME', help='Returns if user exists')
 parser.add_option('-g', '--get', action='store_true', dest='get', help='Get list of users')
 # Example argument: '{"username": "USERNAME_HERE", "password": "PASSWORD_HERE", "email": "EMAIL_HERE"}'
 parser.add_option('-c', '--check', action='store', dest='check', metavar='USER_DICTIONARY', help='Check specific user')
+# Example argument: '{"username": "USERNAME_HERE", "password": "PASSWORD_HERE"}'
+parser.add_option('-v', '--valid', action='store', dest='valid', metavar='USER_DICTIONARY', help='Verify username and password valid pair')
 
 # OTHER
 parser.add_option('-q', '--quiet', action='store_true', dest='noemail', help='force to not send email even if grade changed')
@@ -61,6 +64,12 @@ parser.add_option('-s', '--setup', action='store_true', dest='setup', help='Setu
 parser.add_option('-z', '--salt', action='store', dest='z', help='Encryption salt')
 
 (options, args) = parser.parse_args()
+
+def encrypted(string):
+    return hexlify(encrypt(options.z, string.encode('utf8')))
+
+def decrypted(string):
+    return decrypt(options.z, unhexlify(string)).decode('utf8')
 
 class Course:
     """an object for an individual class, contains a grade and class name"""
@@ -142,6 +151,19 @@ class User:
         sqlc.execute("UPDATE accounts SET enabled = '{}' WHERE username = '{}'".format(0, username))
         conn.commit()
         return User.from_username(username)
+    
+    @classmethod
+    def remove_account(self, username):
+        user = User.from_username(username)
+        sqlc.execute("DELETE FROM accounts WHERE username = '{}'".format(username))
+        conn.commit()
+        return user
+    
+    @classmethod
+    def valid_password(self, username, password):
+        sqlc.execute("SELECT password FROM accounts WHERE username = '{}'".format(username))
+        password_row = decrypted(sqlc.fetchone()['password'])
+        return password == password_row
     
     def create_row_if_not_exists(self):
         sqlc.execute("CREATE TABLE IF NOT EXISTS {} (name TEXT UNIQUE, grade FLOAT, letter TEXT, date DATE)".format("user_"+self.username))
@@ -385,7 +407,7 @@ def login(user, shouldDecrypt):
     br.open(cfg['login_url'])
     br.select_form(nr=0) #select the first form
     br.form['username'] = user.username
-    br.form['password'] = decrypt(options.z, unhexlify(user.password)).decode('utf8') if shouldDecrypt else user.password
+    br.form['password'] = decrypted(user.password) if shouldDecrypt else user.password
     br.submit()
 
 # returns array where index 0 element is grade_changed (boolean) and index 1 element is grade string
@@ -424,26 +446,37 @@ def main():
             User.setup_accounts_table()
             print("Setup accounts database")
         # argument is dictionary
-        elif options.add or options.modify:
-            user_data = json.loads(options.add or options.modify)
+        elif options.add or options.modify or options.valid:
+            user_data = json.loads(options.add or options.modify or options.valid)
             username = user_data['username'] or ''
             if not username:
-                print("Please provide a username to add or modify")
+                print("Please provide a username")
             else:
                 if User.exists(username):
                     if options.add:
                         print("A user with username '{}' already exists. Please use the -e flag instead".format(username))
-                    else:
-                        user = User.from_username(username)
-                        new_value = user_data['value']
-                        if user_data['key'] == 'password':
-                            if options.z:
-                                new_value = hexlify(encrypt(options.z, new_value.encode('utf8')))
-                            else:
-                                print("Please include the encryption salt")
-                                return
-                        user.update(user_data['key'], new_value)
-                        print("Updated {} for {}".format(user_data['key'], user))
+                    elif options.valid:
+                        if not options.z:
+                            print("Please include the encryption salt")
+                            return
+                        if "password" not in user_data:
+                            print("Please provide the password with the username")
+                            return
+                        print(("1" if User.valid_password(username, user_data['password']) else "0"))
+                    elif options.modify:
+                        if all (k in user_data for k in ("key", "value")):
+                            user = User.from_username(username)
+                            new_value = user_data['value']
+                            if user_data['key'] == 'password':
+                                if options.z:
+                                    new_value = encrypted(new_value)
+                                else:
+                                    print("Please include the encryption salt")
+                                    return
+                            user.update(user_data['key'], new_value)
+                            print("Updated {} for {}".format(user_data['key'], user))
+                        else:
+                            print("Please provide username, key, and value")
                 elif options.add:
                     if all (k in user_data for k in ("name", "password", "email")):
                         # If forgot encryption salt, tell them
@@ -451,18 +484,20 @@ def main():
                             print("Please include the encryption salt")
                         else:
                             user = User.from_dict(user_data)
-                            user.password = hexlify(encrypt(options.z, user.password.encode('utf8')))
+                            user.password = encrypted(user.password)
                             user.create_account()
                             print("Added {}".format(user))
                     else:
                         print("Please provide name, username, password, and email")
+                elif options.valid:
+                    print("0")
                 elif options.modify:
-                    print("This user does not exist")
+                    print("Could not find user with username '{}'".format(username))
         # argument is username
-        elif options.enable or options.disable or options.exists:
-            username = options.enable or options.disable or options.exists
+        elif options.enable or options.disable or options.remove or options.exists:
+            username = options.enable or options.disable or options.remove or options.exists
             if not User.exists(username):
-                if options.enable or options.disable:
+                if options.enable or options.disable or options.remove:
                     print("Could not find user with username '{}'".format(username))
                 elif options.exists:
                     print("0")
@@ -473,6 +508,9 @@ def main():
                 elif options.disable:
                     user = User.disable_account(username)
                     print("Disabled {}".format(user))
+                elif options.remove:
+                    user = User.remove_account(username)
+                    print("Removed {}".format(user))
                 elif options.exists:
                     print("1")
         elif options.get:
