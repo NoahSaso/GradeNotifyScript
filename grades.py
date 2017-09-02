@@ -56,6 +56,8 @@ parser.add_option('-d', '--disable', action='store', dest='disable', metavar='US
 # Example argument: '{"username": "USERNAME_HERE", "key": "email", "value": "new_email@gmail.com"}'
 parser.add_option('-m', '--modify', action='store', dest='modify', metavar='USER_DICTIONARY', help='Modifies attribute of user')
 
+parser.add_option('-x', '--exists', action='store', dest='exists', metavar='USERNAME', help='Returns if user exists')
+
 parser.add_option('-g', '--get', action='store_true', dest='get', help='Get list of users')
 parser.add_option('-z', '--salt', action='store', dest='z', help='Encryption salt')
 
@@ -408,6 +410,7 @@ def main():
         if options.setup:
             User.setup_accounts_table()
             print("Setup accounts database")
+        # argument is dictionary
         elif options.add or options.modify:
             user_data = json.loads(options.add or options.modify)
             username = user_data['username'] or 'EMPTY_USER'
@@ -443,12 +446,20 @@ def main():
                         print("Please provide name, username, password, and email")
                 elif options.modify:
                     print("This user does not exist")
-        elif options.disable:
-            if not User.exists(options.disable):
-                print("Could not find user with given username ({})".format(options.disable))
+        # argument is username
+        elif options.disable or options.exists:
+            username = options.disable or options.exists
+            if not User.exists(username):
+                if options.disable:
+                    print("Could not find user with given username ({})".format(username))
+                elif options.exists:
+                    print("0")
             else:
-                user = User.disable_account(options.disable)
-                print("Disabled {}".format(user))
+                if options.disable:
+                    user = User.disable_account(username)
+                    print("Disabled {}".format(user))
+                elif options.exists:
+                    print("1")
         elif options.get:
             disabled_users = []
             enabled_users = []
