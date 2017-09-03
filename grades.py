@@ -24,6 +24,9 @@ from binascii import hexlify, unhexlify
 from simplecrypt import encrypt, decrypt
 
 DEV_MODE = getpass.getuser() != 'gradenotify'
+def dev_print(string):
+    if DEV_MODE:
+        print(string)
 
 DIRNAME = os.path.dirname(os.path.realpath(__file__))
 CONFIG_FILE_NAME = DIRNAME+"/config.yml"
@@ -56,15 +59,16 @@ parser.add_option('-r', '--remove', action='store', dest='remove', metavar='USER
 # Example argument: '{"username": "USERNAME_HERE", "key": "email", "value": "NEW_EMAIL_HERE"}'
 parser.add_option('-m', '--modify', action='store', dest='modify', metavar='USER_DICTIONARY', help='Modifies attribute of user')
 parser.add_option('-x', '--exists', action='store', dest='exists', metavar='USERNAME', help='Returns if user exists')
-parser.add_option('-g', '--get', action='store_true', dest='get', help='Get list of users')
+parser.add_option('-l', '--list', action='store_true', dest='list', help='Get list of users')
 # Example argument: '{"username": "USERNAME_HERE", "password": "PASSWORD_HERE", "email": "EMAIL_HERE"}'
 parser.add_option('-c', '--check', action='store', dest='check', metavar='USER_DICTIONARY', help='Check specific user')
 # Example argument: '{"username": "USERNAME_HERE", "password": "PASSWORD_HERE"}'
 parser.add_option('-v', '--valid', action='store', dest='valid', metavar='USER_DICTIONARY', help='Verify username and password valid pair')
+parser.add_option('-g', '--go', action='store', dest='go', metavar='USERNAME', help='Sends grades to user')
 
 # OTHER
 parser.add_option('-q', '--quiet', action='store_true', dest='quiet', help='force to not send email even if grade changed')
-parser.add_option('-l', '--loud', action='store_true', dest='loud', help='force to send email even if grade not changed')
+parser.add_option('-o', '--loud', action='store_true', dest='loud', help='force to send email even if grade not changed')
 parser.add_option('-s', '--setup', action='store_true', dest='setup', help='Setup accounts database')
 parser.add_option('-z', '--salt', action='store', dest='z', help='Encryption salt')
 # Example argument: '{"username": "USERNAME_HERE", "password": "PASSWORD_HERE"}'
@@ -224,7 +228,7 @@ def get_schedule_page_url():
     try:
         dom = minidom.parse(school_data)
     except:
-        print("Minidom failed parsing (probably not signed in)")
+        dev_print("Minidom failed parsing (probably not signed in)")
         full = traceback.format_exc()
         logging.warning("Exception: %s" % full)
         send_admin_email("GN | minidom parse failed", "{}\n\n{}".format(curr_user, full))
@@ -386,28 +390,28 @@ def get_grades():
     the last grade percentage and the corresponding class name
     to the grades list
     """
+    print("Getting grades...")
     try:
         grades = []
-        print("Grabbing semester...")
         term = get_term()
         if term == -1:
-            print("Failed to get term, maybe password issue, ignoring user")
+            dev_print("Failed to get term, maybe password issue, ignoring user")
             return False
         else:
-            print("Grabbing schedule...")
+            dev_print("Grabbing schedule...")
             class_links = get_class_links(term)
             if not class_links:
                 return False
-            print("Grabbing grades of schedule from semester...")
+            dev_print("Grabbing grades of schedule from semester...")
             for num, link in enumerate(class_links):
                 if link is not None:
                     course = course_from_page(link)
                     if course:
                         grades.append(course)
-            print("Got all grades...")
+            dev_print("Got all grades...")
             return grades
     except:
-        print("Something bad happened (probably login information failed?)")
+        dev_print("Something bad happened (probably login information failed?)")
         full = traceback.format_exc()
         logging.warning("Exception: %s" % full)
         send_admin_email("GN | get_grades try failed", "{}\n\n{}".format(curr_user, full))
@@ -504,7 +508,6 @@ def send_welcome_email(user):
 
 def send_admin_email(subject, message):
     if not DEV_MODE:
-        print("Sending admin email")
         utils.send_email(cfg['smtp_address'], cfg['smtp_username'], cfg['smtp_password'], 'noahsaso@gmail.com', subject, message)
 
 def main():
@@ -596,7 +599,7 @@ def main():
                     print("Removed {}".format(user))
                 elif options.exists:
                     print("1")
-        elif options.get:
+        elif options.list:
             disabled_users = []
             enabled_users = []
             for user in User.get_all_users(''):
@@ -610,6 +613,14 @@ def main():
                                         "\n".join(sorted(enabled_users, key=str.lower) or ['No enabled users'])
                                     ])
             print(final_string)
+        elif options.go:
+            if not options.z:
+                print("Please include the encryption salt")
+            else:
+                if User.exists(options.go):
+                    do_task(User.from_username(options.go), True)
+                else:
+                    print("Could not find user with username {}".format(options.go))
         else:
             # If not checking single
             if not options.check:
@@ -619,11 +630,11 @@ def main():
                 else:
                     # Get users
                     for user in User.get_all_users('WHERE enabled = 1'):
-                        do_task(user, False)
+                        do_task(user, True)
 
             # Else if specified check user
             else:
-                do_task(User.from_dict(json.loads(options.check)), True)
+                do_task(User.from_dict(json.loads(options.check)), False)
 
         sqlc.close()
         conn.close()
@@ -633,10 +644,10 @@ def main():
         logging.warning("Exception: %s" % full)
         send_admin_email("GN | Main try failed", "{}".format(full))
 
-def do_task(user, isSingle):
+def do_task(user, inDatabase):
     try:
         print("Logging in {}...".format(user))
-        if not login(user, not isSingle):
+        if not login(user, inDatabase):
             print("Log in failed, probably wrong credentials")
             send_admin_email("GN | Login failed", "{}".format(user))
             return
@@ -645,7 +656,7 @@ def do_task(user, isSingle):
         if grades == False:
             return
 
-        if not isSingle:
+        if inDatabase:
             user.create_row_if_not_exists()
             user.save_grades_to_database(grades)
 
@@ -653,10 +664,10 @@ def do_task(user, isSingle):
         # array: [ grade_changed, string ]
         final_grades = get_grade_string(grades, user)
         # If grade changed and no send email is false, send email
-        if (isSingle and user.email) or (not isSingle and (options.loud or (not options.quiet and final_grades[0]))):
+        if (not inDatabase and user.email) or (inDatabase and (options.go or options.loud or (not options.quiet and final_grades[0]))):
             send_grade_email(user.email, final_grades[1])
 
-        print(final_grades[1])
+        dev_print(final_grades[1])
 
         logout()
     except:
