@@ -23,6 +23,8 @@ from binascii import hexlify, unhexlify
 
 from simplecrypt import encrypt, decrypt
 
+DEV_MODE = getpass.getuser() != 'gradenotify'
+
 DIRNAME = os.path.dirname(os.path.realpath(__file__))
 CONFIG_FILE_NAME = DIRNAME+"/config.yml"
 cfg = {}
@@ -65,6 +67,8 @@ parser.add_option('-q', '--quiet', action='store_true', dest='quiet', help='forc
 parser.add_option('-l', '--loud', action='store_true', dest='loud', help='force to send email even if grade not changed')
 parser.add_option('-s', '--setup', action='store_true', dest='setup', help='Setup accounts database')
 parser.add_option('-z', '--salt', action='store', dest='z', help='Encryption salt')
+# Example argument: '{"username": "USERNAME_HERE", "password": "PASSWORD_HERE"}'
+parser.add_option('-i', '--infinitecampus', action='store', dest='infinitecampus', metavar='USER_DICTIONARY', help='Check validity of infinite campus credentials')
 
 (options, args) = parser.parse_args()
 
@@ -414,7 +418,6 @@ def login(user, shouldDecrypt):
     """Logs in to the Infinite Campus at the
     address specified in the config
     """
-    print("Logging in {}...".format(user))
     br.open(cfg['login_url'])
     br.select_form(nr=0) #select the first form
     br.form['username'] = user.username
@@ -422,11 +425,20 @@ def login(user, shouldDecrypt):
     r = br.submit()
 
     soup = BeautifulSoup(r)
+
     # shows if sign in failed
-    errorMsg = soup.find('p', {'class': 'errorMessage'})
+    # error_msg = soup.find('p', {'class': 'errorMessage'})
+    # status_msg = soup.find('div', {'class': 'statusmsg'})
+    # if status_msg:
+    #     status_error = 'Incorrect' in status_msg.getText()
+    # else:
+    #     status_error = False
+
+    iframe = soup.find('iframe', id='frameDetail', attrs={'name': 'frameDetail'})
 
     global curr_user
-    if not errorMsg:
+    # if not error_msg and not status_error:
+    if iframe:
         curr_user = user
         return True
     else:
@@ -436,7 +448,6 @@ def login(user, shouldDecrypt):
 def logout():
     """Logs out of Infinite Campus
     """
-    print("Logging out...")
     br.open(get_base_url() + 'logoff.jsp')
 
     global curr_user
@@ -486,14 +497,15 @@ def send_welcome_email(user):
         "Grade Notify"
     ])
 
-    email = 'noahsaso@gmail.com' if getpass.getuser() != 'gradenotify' else user.email
+    email = 'noahsaso@gmail.com' if DEV_MODE else user.email
 
     print("Sending welcome email to {} {{{}}}".format(user, email))
     utils.send_email(cfg['smtp_address'], cfg['smtp_username'], cfg['smtp_password'], email, 'Welcome', message)
 
 def send_admin_email(subject, message):
-    print("Sending admin email")
-    utils.send_email(cfg['smtp_address'], cfg['smtp_username'], cfg['smtp_password'], 'noahsaso@gmail.com', subject, message)
+    if not DEV_MODE:
+        print("Sending admin email")
+        utils.send_email(cfg['smtp_address'], cfg['smtp_username'], cfg['smtp_password'], 'noahsaso@gmail.com', subject, message)
 
 def main():
     # Run every 10 minutes with a cron job (*/10 * * * * /path/to/scraper_auto.py)
@@ -504,56 +516,63 @@ def main():
             User.setup_accounts_table()
             print("Setup accounts database")
         # argument is dictionary
-        elif options.add or options.modify or options.valid:
-            user_data = json.loads(options.add or options.modify or options.valid)
+        elif options.add or options.modify or options.valid or options.infinitecampus:
+            user_data = json.loads(options.add or options.modify or options.valid or options.infinitecampus)
             username = user_data['username'] or ''
             if not username:
                 print("Please provide a username")
             else:
-                if User.exists(username):
-                    if options.add:
-                        print("A user with username '{}' already exists. Please use the -e flag instead".format(username))
-                    elif options.valid:
-                        if not options.z:
-                            print("Please include the encryption salt")
-                            return
-                        if "password" not in user_data:
-                            print("Please provide the password with the username")
-                            return
-                        print(("1" if User.valid_password(username, user_data['password']) else "0"))
-                    elif options.modify:
-                        if all (k in user_data for k in ("key", "value")):
-                            user = User.from_username(username)
-                            new_value = user_data['value']
-                            if user_data['key'] == 'password':
-                                if options.z:
-                                    new_value = encrypted(new_value)
-                                else:
-                                    print("Please include the encryption salt")
-                                    return
-                            user.update(user_data['key'], new_value)
-                            send_admin_email("GN | User Updated", "Updated {} for {}".format(user_data['key'], user))
-                            print("Updated {} for {}".format(user_data['key'], user))
-                        else:
-                            print("Please provide username, key, and value")
-                elif options.add:
-                    if all (k in user_data for k in ("name", "password", "email")):
-                        # If forgot encryption salt, tell them
-                        if not options.z:
-                            print("Please include the encryption salt")
-                        else:
-                            user = User.from_dict(user_data)
-                            user.password = encrypted(user.password)
-                            user.create_account()
-                            send_admin_email("GN | User Created", "Created {}".format(user))
-                            send_welcome_email(user)
-                            print("Added {}".format(user))
+                if options.infinitecampus:
+                    if all (k in user_data for k in ("username", "password")):
+                        user = User.from_dict(user_data)
+                        print("1" if login(user, False) else "0")
                     else:
-                        print("Please provide name, username, password, and email")
-                elif options.valid:
-                    print("0")
-                elif options.modify:
-                    print("Could not find user with username '{}'".format(username))
+                        print("Please provide a username and password")
+                else:
+                    if User.exists(username):
+                        if options.add:
+                            print("A user with username '{}' already exists. Please use the -e flag instead".format(username))
+                        elif options.valid:
+                            if not options.z:
+                                print("Please include the encryption salt")
+                                return
+                            if "password" not in user_data:
+                                print("Please provide the password with the username")
+                                return
+                            print(("1" if User.valid_password(username, user_data['password']) else "0"))
+                        elif options.modify:
+                            if all (k in user_data for k in ("key", "value")):
+                                user = User.from_username(username)
+                                new_value = user_data['value']
+                                if user_data['key'] == 'password':
+                                    if options.z:
+                                        new_value = encrypted(new_value)
+                                    else:
+                                        print("Please include the encryption salt")
+                                        return
+                                user.update(user_data['key'], new_value)
+                                send_admin_email("GN | User Updated", "Updated {} for {}".format(user_data['key'], user))
+                                print("Updated {} for {}".format(user_data['key'], user))
+                            else:
+                                print("Please provide username, key, and value")
+                    elif options.add:
+                        if all (k in user_data for k in ("name", "password", "email")):
+                            # If forgot encryption salt, tell them
+                            if not options.z:
+                                print("Please include the encryption salt")
+                            else:
+                                user = User.from_dict(user_data)
+                                user.password = encrypted(user.password)
+                                user.create_account()
+                                send_admin_email("GN | User Created", "Created {}".format(user))
+                                send_welcome_email(user)
+                                print("Added {}".format(user))
+                        else:
+                            print("Please provide name, username, password, and email")
+                    elif options.valid:
+                        print("0")
+                    elif options.modify:
+                        print("Could not find user with username '{}'".format(username))
         # argument is username
         elif options.enable or options.disable or options.remove or options.exists:
             username = options.enable or options.disable or options.remove or options.exists
@@ -616,6 +635,7 @@ def main():
 
 def do_task(user, isSingle):
     try:
+        print("Logging in {}...".format(user))
         if not login(user, not isSingle):
             print("Log in failed, probably wrong credentials")
             send_admin_email("GN | Login failed", "{}".format(user))
