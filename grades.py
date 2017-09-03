@@ -41,6 +41,8 @@ conn = sqlite3.connect(DIRNAME+"/database.db")
 conn.row_factory = dict_factory
 sqlc = conn.cursor()
 
+curr_user = None
+
 parser = OptionParser(description='Scrapes grades from infinite campus website')
 
 # USER
@@ -215,7 +217,14 @@ def get_schedule_page_url():
     """returns the url of the schedule page"""
     url = 'portal/portalOutlineWrapper.xsl?x=portal.PortalOutline&contentType=text/xml&lang=en'
     school_data = br.open(get_base_url() + url)
-    dom = minidom.parse(school_data)
+    try:
+        dom = minidom.parse(school_data)
+    except:
+        print("Minidom failed parsing (probably not signed in)")
+        full = traceback.format_exc()
+        logging.warning("Exception: %s" % full)
+        send_admin_email("GN | minidom parse failed", "{}\n\n{}".format(curr_user, full))
+        return False
 
     nodes = dom.getElementsByTagName('Student')
     if len(nodes) < 1:
@@ -397,7 +406,7 @@ def get_grades():
         print("Something bad happened (probably login information failed?)")
         full = traceback.format_exc()
         logging.warning("Exception: %s" % full)
-        send_admin_email("GN | get_grades try failed", "{}".format(full))
+        send_admin_email("GN | get_grades try failed", "{}\n\n{}".format(curr_user, full))
 
     return False
 
@@ -410,13 +419,28 @@ def login(user, shouldDecrypt):
     br.select_form(nr=0) #select the first form
     br.form['username'] = user.username
     br.form['password'] = decrypted(user.password) if shouldDecrypt else user.password
-    br.submit()
+    r = br.submit()
+
+    soup = BeautifulSoup(r)
+    # shows if sign in failed
+    errorMsg = soup.find('p', {'class': 'errorMessage'})
+
+    global curr_user
+    if not errorMsg:
+        curr_user = user
+        return True
+    else:
+        curr_user = None
+        return False
 
 def logout():
     """Logs out of Infinite Campus
     """
     print("Logging out...")
     br.open(get_base_url() + 'logoff.jsp')
+
+    global curr_user
+    curr_user = None
 
 # returns array where index 0 element is grade_changed (boolean) and index 1 element is grade string
 def get_grade_string(grades, user):
@@ -592,7 +616,10 @@ def main():
 
 def do_task(user, isSingle):
     try:
-        login(user, not isSingle)
+        if not login(user, not isSingle):
+            print("Log in failed, probably wrong credentials")
+            send_admin_email("GN | Login failed", "{}".format(user))
+            return
 
         grades = get_grades()
         if grades == False:
@@ -616,7 +643,7 @@ def do_task(user, isSingle):
         print("Doing task failed, probably login information failed?")
         full = traceback.format_exc()
         logging.warning("Exception: %s" % full)
-        send_admin_email("GN | do_task try failed", "{}".format(full))
+        send_admin_email("GN | do_task try failed", "{}\n\n{}".format(user, full))
 
 if __name__ == '__main__':
     main()
