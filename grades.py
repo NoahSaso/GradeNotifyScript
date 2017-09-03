@@ -395,8 +395,9 @@ def get_grades():
             return grades
     except:
         print("Something bad happened (probably login information failed?)")
-        traceback.print_exc()
-        #sys.exit(1)
+        full = traceback.format_exc()
+        logging.warning("Exception: %s" % full)
+        send_admin_email("GN | get_grades try failed", "{}".format(full))
 
     return False
 
@@ -438,6 +439,10 @@ def send_grade_email(email, message):
     print("Sending email to {}".format(email))
     utils.send_email(cfg['smtp_address'], cfg['smtp_username'], cfg['smtp_password'], email, 'Grade Alert', message)
 
+def send_admin_email(subject, message):
+    print("Sending admin email")
+    utils.send_email(cfg['smtp_address'], cfg['smtp_username'], cfg['smtp_password'], 'noahsaso@gmail.com', subject, message)
+
 def main():
     # Run every 10 minutes with a cron job (*/10 * * * * /path/to/scraper_auto.py)
     try:
@@ -475,6 +480,7 @@ def main():
                                     print("Please include the encryption salt")
                                     return
                             user.update(user_data['key'], new_value)
+                            send_admin_email("GN | User Updated", "Updated {} for {}".format(user_data['key'], user))
                             print("Updated {} for {}".format(user_data['key'], user))
                         else:
                             print("Please provide username, key, and value")
@@ -487,6 +493,7 @@ def main():
                             user = User.from_dict(user_data)
                             user.password = encrypted(user.password)
                             user.create_account()
+                            send_admin_email("GN | User Created", "Created {}".format(user))
                             print("Added {}".format(user))
                     else:
                         print("Please provide name, username, password, and email")
@@ -505,12 +512,15 @@ def main():
             else:
                 if options.enable:
                     user = User.enable_account(username)
+                    send_admin_email("GN | User Enabled", "Enabled {}".format(user))
                     print("Enabled {}".format(user))
                 elif options.disable:
                     user = User.disable_account(username)
+                    send_admin_email("GN | User Disabled", "Disabled {}".format(user))
                     print("Disabled {}".format(user))
                 elif options.remove:
                     user = User.remove_account(username)
+                    send_admin_email("GN | User Removed", "Removed {}".format(user))
                     print("Removed {}".format(user))
                 elif options.exists:
                     print("1")
@@ -549,6 +559,7 @@ def main():
     except:
         full = traceback.format_exc()
         logging.warning("Exception: %s" % full)
+        send_admin_email("GN | Main try failed", "{}".format(full))
 
 def do_task(user, isSingle):
     try:
@@ -572,7 +583,9 @@ def do_task(user, isSingle):
         print(final_grades[1])
     except:
         print("Doing task failed, probably login information failed?")
-        traceback.print_exc()
+        full = traceback.format_exc()
+        logging.warning("Exception: %s" % full)
+        send_admin_email("GN | do_task try failed", "{}".format(full))
 
 if __name__ == '__main__':
     main()
