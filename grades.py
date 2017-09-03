@@ -416,7 +416,7 @@ def logout():
     """Logs out of Infinite Campus
     """
     print("Logging out...")
-    br.open(cfg['logout_url'])
+    br.open(get_base_url() + 'logoff.jsp')
 
 # returns array where index 0 element is grade_changed (boolean) and index 1 element is grade string
 def get_grade_string(grades, user):
