@@ -58,8 +58,6 @@ parser.add_option('-c', '--check', action='store', dest='check', metavar='USER_D
 # Example argument: '{"username": "USERNAME_HERE", "password": "PASSWORD_HERE"}'
 parser.add_option('-v', '--valid', action='store', dest='valid', metavar='USER_DICTIONARY', help='Verify username and password valid pair')
 
-parser.add_option()
-
 # OTHER
 parser.add_option('-q', '--quiet', action='store_true', dest='quiet', help='force to not send email even if grade changed')
 parser.add_option('-l', '--loud', action='store_true', dest='loud', help='force to send email even if grade not changed')
