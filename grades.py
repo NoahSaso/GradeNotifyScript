@@ -58,6 +58,8 @@ parser.add_option('-c', '--check', action='store', dest='check', metavar='USER_D
 # Example argument: '{"username": "USERNAME_HERE", "password": "PASSWORD_HERE"}'
 parser.add_option('-v', '--valid', action='store', dest='valid', metavar='USER_DICTIONARY', help='Verify username and password valid pair')
 
+parser.add_option()
+
 # OTHER
 parser.add_option('-q', '--quiet', action='store_true', dest='quiet', help='force to not send email even if grade changed')
 parser.add_option('-l', '--loud', action='store_true', dest='loud', help='force to send email even if grade not changed')
@@ -436,8 +438,30 @@ def get_grade_string(grades, user):
     return [grade_changed, (changed_grade_string + other_grade_string)]
 
 def send_grade_email(email, message):
-    print("Sending email to {}".format(email))
+    print("Sending grade email to {}".format(email))
     utils.send_email(cfg['smtp_address'], cfg['smtp_username'], cfg['smtp_password'], email, 'Grade Alert', message)
+
+def send_welcome_email(user):
+
+    first_name = user.name.split(' ')
+    if len(first_name) > 0:
+        first_name = first_name[0]
+
+    message = "\n".join([
+        "Hey {},".format(first_name),
+        "",
+        "You have signed up for GradeNotify. About every 30 minutes, our system will scan your grades and email you an update if we notice anything different from the previous scan. Right now, we only send the cumulative grades of each class (not individual assignments). More detailed reports will come soon.",
+        "",
+        "You can reply to this email if you have any questions or issues.",
+        "",
+        "Thanks!",
+        "Grade Notify"
+    ])
+
+    email = 'noahsaso@gmail.com' if os.getlogin() == 'noah' else user.email
+
+    print("Sending welcome email to {} {{{}}}".format(user, email))
+    utils.send_email(cfg['smtp_address'], cfg['smtp_username'], cfg['smtp_password'], email, 'Welcome', message)
 
 def send_admin_email(subject, message):
     print("Sending admin email")
@@ -494,6 +518,7 @@ def main():
                             user.password = encrypted(user.password)
                             user.create_account()
                             send_admin_email("GN | User Created", "Created {}".format(user))
+                            send_welcome_email(user)
                             print("Added {}".format(user))
                     else:
                         print("Please provide name, username, password, and email")
