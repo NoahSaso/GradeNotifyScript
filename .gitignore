@@ -2,3 +2,5 @@ config.yml
 history.db
 database.db
 *.pyc
+*.db
+*.db-journal
