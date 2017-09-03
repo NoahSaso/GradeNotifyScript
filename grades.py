@@ -456,7 +456,7 @@ def send_welcome_email(user):
         "Grade Notify"
     ])
 
-    email = 'noahsaso@gmail.com' if os.getlogin() == 'noah' else user.email
+    email = 'noahsaso@gmail.com' if getpass.getuser() != 'gradenotify' else user.email
 
     print("Sending welcome email to {} {{{}}}".format(user, email))
     utils.send_email(cfg['smtp_address'], cfg['smtp_username'], cfg['smtp_password'], email, 'Welcome', message)
