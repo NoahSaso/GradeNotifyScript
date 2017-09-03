@@ -493,12 +493,12 @@ def send_welcome_email(user):
     message = "\n".join([
         "Hey {},".format(first_name),
         "",
-        "You have signed up for GradeNotify. About every 30 minutes, our system will scan your grades and email you an update if we notice anything different from the previous scan. Right now, we only send the cumulative grades of each class (not individual assignments). More detailed reports will come soon.",
+        "You have signed up for GradeNotify. About every 30 minutes, the system will scan your grades and email you an update if it notices anything different from the previous scan. Right now, I only send the cumulative grades of each class (not individual assignments). More detailed reports will come soon.",
         "",
         "You can reply to this email if you have any questions or issues.",
         "",
-        "Thanks!",
-        "Grade Notify"
+        "Thanks",
+        "Noah — Grade Notify"
     ])
 
     email = 'noahsaso@gmail.com' if DEV_MODE else user.email
