@@ -412,6 +412,12 @@ def login(user, shouldDecrypt):
     br.form['password'] = decrypted(user.password) if shouldDecrypt else user.password
     br.submit()
 
+def logout():
+    """Logs out of Infinite Campus
+    """
+    print("Logging out...")
+    br.open(cfg['logout_url'])
+
 # returns array where index 0 element is grade_changed (boolean) and index 1 element is grade string
 def get_grade_string(grades, user):
     """Extracts the grade_string"""
@@ -604,6 +610,8 @@ def do_task(user, isSingle):
             send_grade_email(user.email, final_grades[1])
 
         print(final_grades[1])
+
+        logout()
     except:
         print("Doing task failed, probably login information failed?")
         full = traceback.format_exc()

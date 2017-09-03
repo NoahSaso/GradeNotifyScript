@@ -2,3 +2,4 @@ smtp_address: smtp.gmail.com:587
 smtp_username: email@gmail.com
 smtp_password: "gmail_password_123"
 login_url: https://sanjoseca.infinitecampus.org/campus/sanjose.jsp
+logout_url: https://sanjoseca.infinitecampus.org/campus/logoff.jsp
