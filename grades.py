@@ -424,32 +424,38 @@ def login(user, shouldDecrypt):
     """Logs in to the Infinite Campus at the
     address specified in the config
     """
-    br.open(cfg['login_url'])
-    br.select_form(nr=0) #select the first form
-    br.form['username'] = user.username
-    br.form['password'] = decrypted(user.password) if shouldDecrypt else user.password
-    r = br.submit()
+    try:
 
-    soup = BeautifulSoup(r)
+        br.open(cfg['login_url'])
+        br.select_form(nr=0) #select the first form
+        br.form['username'] = user.username
+        br.form['password'] = decrypted(user.password) if shouldDecrypt else user.password
+        r = br.submit()
 
-    # shows if sign in failed
-    # error_msg = soup.find('p', {'class': 'errorMessage'})
-    # status_msg = soup.find('div', {'class': 'statusmsg'})
-    # if status_msg:
-    #     status_error = 'Incorrect' in status_msg.getText()
-    # else:
-    #     status_error = False
+        soup = BeautifulSoup(r)
 
-    iframe = soup.find('iframe', id='frameDetail', attrs={'name': 'frameDetail'})
+        # shows if sign in failed
+        # error_msg = soup.find('p', {'class': 'errorMessage'})
+        # status_msg = soup.find('div', {'class': 'statusmsg'})
+        # if status_msg:
+        #     status_error = 'Incorrect' in status_msg.getText()
+        # else:
+        #     status_error = False
 
-    global curr_user
-    # if not error_msg and not status_error:
-    if iframe:
-        curr_user = user
-        return True
-    else:
-        curr_user = None
-        return False
+        iframe = soup.find('iframe', id='frameDetail', attrs={'name': 'frameDetail'})
+
+        global curr_user
+        # if not error_msg and not status_error:
+        if iframe:
+            curr_user = user
+            return True
+        else:
+            curr_user = None
+        
+    except (mechanize.HTTPError, mechanize.URLError) as e:
+        print("Could not connect to Infinite Campus. Their servers may be down. Please try again later when it is back up so your credentials can be verified")
+    
+    return False
 
 def logout():
     """Logs out of Infinite Campus
