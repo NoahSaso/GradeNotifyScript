@@ -498,7 +498,7 @@ def send_welcome_email(user):
         "You can reply to this email if you have any questions or issues.",
         "",
         "Thanks!",
-        "Noah — Grade Notify"
+        "Noah -- Grade Notify"
     ])
 
     email = 'noahsaso@gmail.com' if DEV_MODE else user.email
