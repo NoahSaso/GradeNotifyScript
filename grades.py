@@ -453,7 +453,7 @@ def login(user, shouldDecrypt):
             curr_user = None
         
     except (mechanize.HTTPError, mechanize.URLError) as e:
-        print("Could not connect to Infinite Campus. Their servers may be down. Please try again later when it is back up so your credentials can be verified")
+        print("Could not connect to Infinite Campus' servers. Please try again later when it is back up so your credentials can be verified.")
     
     return False
 
