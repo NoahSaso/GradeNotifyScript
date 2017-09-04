@@ -96,7 +96,7 @@ class Course:
         course_row = sqlc.fetchone()
         # Set prev grade to own grade so no difference if grade didn't exist
         prev_grade = (course_row['grade'] if course_row and 'grade' in course_row else self.grade)
-        if prev_grade <= 0.0:
+        if prev_grade < 0.0:
             return False
         return float(self.grade) - float(prev_grade)
 
