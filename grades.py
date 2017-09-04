@@ -462,8 +462,7 @@ def logout():
 # returns array where index 0 element is grade_changed (boolean) and index 1 element is grade string
 def get_grade_string(grades, user):
     """Extracts the grade_string"""
-    changed_grade_string = ''
-    other_grade_string = ''
+    final_grades = ""
     grade_changed = False
     for c in grades:
         if c.grade >= 0.0:
@@ -475,10 +474,13 @@ def get_grade_string(grades, user):
             if diff:
                 grade_changed = True
                 change_word = ('up' if diff > 0.0 else 'down')
-                changed_grade_string += "\n".join([grade_string + " " + change_word + " " + str(abs(diff)) + "% (old: " + str(c.grade - diff) + "%)", ""])
+                final_grades += "\n".join([grade_string + " [" + change_word + " " + str(abs(diff)) + "% from " + str(c.grade - diff) + "%]", ""])
             else:
-                other_grade_string += grade_string + "\n"
-    return [grade_changed, (changed_grade_string + other_grade_string)]
+                final_grades += grade_string + "\n"
+    if grade_changed:
+        print("A grade changed")
+
+    return [grade_changed, final_grades]
 
 def send_grade_email(email, message):
     print("Sending grade email to {}".format(email))
@@ -656,16 +658,16 @@ def do_task(user, inDatabase):
         if grades == False:
             return
 
-        if inDatabase:
-            user.create_row_if_not_exists()
-            user.save_grades_to_database(grades)
-
         # Print before saving to show changes
         # array: [ grade_changed, string ]
         final_grades = get_grade_string(grades, user)
         # If grade changed and no send email is false, send email
         if (not inDatabase and user.email) or (inDatabase and (options.go or options.loud or (not options.quiet and final_grades[0]))):
             send_grade_email(user.email, final_grades[1])
+
+        if inDatabase:
+            user.create_row_if_not_exists()
+            user.save_grades_to_database(grades)
 
         dev_print(final_grades[1])
 
