@@ -33,7 +33,6 @@ CONFIG_FILE_NAME = DIRNAME+"/config.yml"
 cfg = {}
 
 br = mechanize.Browser()
-date = date.today()
 
 def dict_factory(cursor, row):
     d = {}
@@ -95,8 +94,11 @@ class Course:
         """
         sqlc.execute("SELECT * FROM {} WHERE name = '{}'".format("user_"+user.username, self.name))
         course_row = sqlc.fetchone()
-        new_grade = (self.grade if not course_row else course_row['grade'])
-        return float(self.grade) - float(new_grade)
+        # Set prev grade to own grade so no difference if grade didn't exist
+        prev_grade = (course_row['grade'] if course_row and 'grade' in course_row else self.grade)
+        if prev_grade <= 0.0:
+            return False
+        return float(self.grade) - float(prev_grade)
 
 class User:
     @classmethod
@@ -177,7 +179,7 @@ class User:
         return password == password_row
     
     def create_row_if_not_exists(self):
-        sqlc.execute("CREATE TABLE IF NOT EXISTS {} (name TEXT UNIQUE, grade FLOAT, letter TEXT, date DATE)".format("user_"+self.username))
+        sqlc.execute("CREATE TABLE IF NOT EXISTS {} (name TEXT UNIQUE, grade FLOAT, letter TEXT)".format("user_"+self.username))
         conn.commit()
     
     def update(self, key, value):
@@ -187,7 +189,7 @@ class User:
 
     def save_grades_to_database(self, grades):
         for course in grades:
-            sqlc.execute("INSERT OR REPLACE INTO {} VALUES ('{}', '{}', '{}', '{}')".format("user_"+self.username, course.name, course.grade, course.letter_grade, date.today()))
+            sqlc.execute("INSERT OR REPLACE INTO {} VALUES ('{}', '{}', '{}')".format("user_"+self.username, course.name, course.grade, course.letter_grade))
             conn.commit()
 
     def __str__(self):
@@ -470,12 +472,10 @@ def get_grade_string(grades, user):
             else:
                 grade_string = "{:.2f}% [{}] {}-- {}".format(c.grade, c.letter_grade, (' ' if len(c.letter_grade) is 1 else ''), c.name)
             diff = c.diff_grade(user, sqlc)
-            if diff and diff < 100.0:
+            if diff:
                 grade_changed = True
                 change_word = ('up' if diff > 0.0 else 'down')
-                changed_grade_string += "\n".join([ grade_string + " " + change_word + " " + str(abs(diff)) + "% (old: " + str(c.grade - diff) + "%)",
-                                                    ""
-                                                  ])
+                changed_grade_string += "\n".join([grade_string + " " + change_word + " " + str(abs(diff)) + "% (old: " + str(c.grade - diff) + "%)", ""])
             else:
                 other_grade_string += grade_string + "\n"
     return [grade_changed, (changed_grade_string + other_grade_string)]
