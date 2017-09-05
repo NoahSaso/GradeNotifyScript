@@ -5,3 +5,4 @@ database.db
 *.db
 *.db-journal
 *.log
+run.sh
