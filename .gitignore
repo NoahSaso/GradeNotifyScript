@@ -4,3 +4,4 @@ database.db
 *.pyc
 *.db
 *.db-journal
+*.log
