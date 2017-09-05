@@ -64,6 +64,7 @@ parser.add_option('-c', '--check', action='store', dest='check', metavar='USER_D
 # Example argument: '{"username": "USERNAME_HERE", "password": "PASSWORD_HERE"}'
 parser.add_option('-v', '--valid', action='store', dest='valid', metavar='USER_DICTIONARY', help='Verify username and password valid pair')
 parser.add_option('-g', '--go', action='store', dest='go', metavar='USERNAME', help='Sends grades to user')
+parser.add_option('-y', action='store_true', dest='createall', help='Creates database for all users in accounts table if not exist')
 
 # OTHER
 parser.add_option('-q', '--quiet', action='store_true', dest='quiet', help='force to not send email even if grade changed')
@@ -152,6 +153,7 @@ class User:
     def create_account(self):
         sqlc.execute("INSERT INTO accounts VALUES ('{}', '{}', '{}', '{}', '{}')".format(self.username, self.name, self.email, self.password, 1))
         conn.commit()
+        self.create_row_if_not_exists()
 
     @classmethod
     def enable_account(self, username):
@@ -629,6 +631,9 @@ def main():
                     do_task(User.from_username(options.go), True)
                 else:
                     print("Could not find user with username {}".format(options.go))
+        elif options.createall:
+            for user in User.get_all_users(''):
+                user.create_row_if_not_exists()
         else:
             # If not checking single
             if not options.check:
