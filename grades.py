@@ -93,7 +93,7 @@ class Course:
         """returns the difference between the current class grade
         and the last one
         """
-        sqlc.execute("SELECT * FROM {} WHERE name = '{}'".format("user_"+user.username, self.name))
+        sqlc.execute("SELECT * FROM '{}' WHERE name = '{}'".format("user_"+user.username, self.name))
         course_row = sqlc.fetchone()
         # Set prev grade to own grade so no difference if grade didn't exist
         prev_grade = (course_row['grade'] if course_row and 'grade' in course_row else self.grade)
@@ -181,7 +181,7 @@ class User:
         return password == password_row
     
     def create_row_if_not_exists(self):
-        sqlc.execute("CREATE TABLE IF NOT EXISTS {} (name TEXT UNIQUE, grade FLOAT, letter TEXT)".format("user_"+self.username))
+        sqlc.execute("CREATE TABLE IF NOT EXISTS '{}' (name TEXT UNIQUE, grade FLOAT, letter TEXT)".format("user_"+self.username))
         conn.commit()
     
     def update(self, key, value):
