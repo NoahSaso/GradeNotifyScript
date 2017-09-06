@@ -439,6 +439,7 @@ def login(user, shouldDecrypt):
     """Logs in to the Infinite Campus at the
     address specified in the config
     """
+    global dont_send_failed_login_email
     try:
 
         br.open(cfg['login_url'])
@@ -483,12 +484,10 @@ def login(user, shouldDecrypt):
         else:
             curr_user = None
 
-        global dont_send_failed_login_email
         dont_send_failed_login_email = False
         
     except (mechanize.HTTPError, mechanize.URLError) as e:
         print("Could not connect to Infinite Campus' servers. Please try again later when it is back up so your credentials can be verified.")
-        global dont_send_failed_login_email
         dont_send_failed_login_email = True
     
     return False
@@ -718,7 +717,6 @@ def do_task(user, inDatabase):
             if not dont_send_failed_login_email:
                 send_admin_email("GN | Login failed", "{}".format(user))
             else:
-                global dont_send_failed_login_email
                 dont_send_failed_login_email = False
             return
 
