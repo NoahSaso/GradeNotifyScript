@@ -50,20 +50,20 @@ curr_user = None
 parser = OptionParser(description='Scrapes grades from infinite campus website')
 
 # USER
-# Example argument: '{"name": "Noah Saso", "username": "USERNAME_HERE", "password": "PASSWORD_HERE", "email": "EMAIL_HERE"}'
+# Example argument: '{"name": "Noah Saso", "username": "STUDENT_ID_HERE", "password": "PASSWORD_HERE", "email": "EMAIL_HERE", "student_id": "STUDENT_ID_HERE"}'
 parser.add_option('-a', '--add', action='store', dest='add', metavar='USER_DICTIONARY', help='Adds user')
-parser.add_option('-e', '--enable', action='store', dest='enable', metavar='USERNAME', help='Enables user')
-parser.add_option('-d', '--disable', action='store', dest='disable', metavar='USERNAME', help='Disables user')
-parser.add_option('-r', '--remove', action='store', dest='remove', metavar='USERNAME', help='Removes user from database')
-# Example argument: '{"username": "USERNAME_HERE", "key": "email", "value": "NEW_EMAIL_HERE"}'
+parser.add_option('-e', '--enable', action='store', dest='enable', metavar='STUDENT_ID', help='Enables user')
+parser.add_option('-d', '--disable', action='store', dest='disable', metavar='STUDENT_ID', help='Disables user')
+parser.add_option('-r', '--remove', action='store', dest='remove', metavar='STUDENT_ID', help='Removes user from database')
+# Example argument: '{"username": "USERNAME_HERE", "key": "email", "value": "NEW_EMAIL_HERE", "student_id": "STUDENT_ID_HERE"}'
 parser.add_option('-m', '--modify', action='store', dest='modify', metavar='USER_DICTIONARY', help='Modifies attribute of user')
-parser.add_option('-x', '--exists', action='store', dest='exists', metavar='USERNAME', help='Returns if user exists')
+parser.add_option('-x', '--exists', action='store', dest='exists', metavar='STUDENT_ID', help='Returns if user exists')
 parser.add_option('-l', '--list', action='store_true', dest='list', help='Get list of users')
-# Example argument: '{"username": "USERNAME_HERE", "password": "PASSWORD_HERE", "email": "EMAIL_HERE"}'
+# Example argument: '{"username": "USERNAME_HERE", "password": "PASSWORD_HERE", "email": "EMAIL_HERE", "student_id": "STUDENT_ID_HERE"}'
 parser.add_option('-c', '--check', action='store', dest='check', metavar='USER_DICTIONARY', help='Check specific user')
-# Example argument: '{"username": "USERNAME_HERE", "password": "PASSWORD_HERE"}'
+# Example argument: '{"username": "USERNAME_HERE", "password": "PASSWORD_HERE", "student_id": "STUDENT_ID_HERE"}'
 parser.add_option('-v', '--valid', action='store', dest='valid', metavar='USER_DICTIONARY', help='Verify username and password valid pair')
-parser.add_option('-g', '--go', action='store', dest='go', metavar='USERNAME', help='Sends grades to user')
+parser.add_option('-g', '--go', action='store', dest='go', metavar='STUDENT_ID', help='Sends grades to user')
 parser.add_option('-y', action='store_true', dest='createall', help='Creates database for all users in accounts table if not exist')
 
 # OTHER
@@ -71,7 +71,7 @@ parser.add_option('-q', '--quiet', action='store_true', dest='quiet', help='forc
 parser.add_option('-o', '--loud', action='store_true', dest='loud', help='force to send email even if grade not changed')
 parser.add_option('-s', '--setup', action='store_true', dest='setup', help='Setup accounts database')
 parser.add_option('-z', '--salt', action='store', dest='z', help='Encryption salt')
-# Example argument: '{"username": "USERNAME_HERE", "password": "PASSWORD_HERE"}'
+# Example argument: '{"username": "STUDENT_ID_HERE", "password": "PASSWORD_HERE"}'
 parser.add_option('-i', '--infinitecampus', action='store', dest='infinitecampus', metavar='USER_DICTIONARY', help='Check validity of infinite campus credentials')
 
 (options, args) = parser.parse_args()
@@ -93,7 +93,7 @@ class Course:
         """returns the difference between the current class grade
         and the last one
         """
-        sqlc.execute("SELECT * FROM '{}' WHERE name = '{}'".format("user_"+user.username, self.name))
+        sqlc.execute("SELECT * FROM '{}' WHERE name = '{}'".format("user_"+user.student_id, self.name))
         course_row = sqlc.fetchone()
         # Set prev grade to own grade so no difference if grade didn't exist
         prev_grade = (course_row['grade'] if course_row and 'grade' in course_row else self.grade)
@@ -112,12 +112,12 @@ class User:
     
     @classmethod
     def setup_accounts_table(self):
-        sqlc.execute("CREATE TABLE IF NOT EXISTS accounts (username TEXT UNIQUE, name TEXT, email TEXT, password TEXT, enabled INTEGER)")
+        sqlc.execute("CREATE TABLE IF NOT EXISTS accounts (username TEXT, name TEXT, email TEXT, password TEXT, enabled INTEGER, student_id TEXT UNIQUE)")
         conn.commit()
 
     @classmethod
-    def from_username(self, username):
-        sqlc.execute("SELECT * FROM accounts WHERE username = '{}'".format(username))
+    def from_student_id(self, student_id):
+        sqlc.execute("SELECT * FROM accounts WHERE student_id = '{}'".format(student_id))
         user_row = sqlc.fetchone()
         if not user_row:
             return None
@@ -132,70 +132,61 @@ class User:
         user.email = row.get('email', '')
         user.password = row['password']
         user.enabled = row.get('enabled', 1)
+        user.student_id = row['student_id']
         return user
     
     @classmethod
-    def from_attributes(self, username, name, password, email):
-        user = self()
-        user.username = username
-        user.name = name
-        user.email = email
-        user.password = password
-        user.enabled = 1
-        return user
-    
-    @classmethod
-    def exists(self, username):
-        sqlc.execute("SELECT COUNT(*) FROM accounts WHERE username = '{}'".format(username))
+    def exists(self, student_id):
+        sqlc.execute("SELECT COUNT(*) FROM accounts WHERE student_id = '{}'".format(student_id))
         rows = sqlc.fetchone()['COUNT(*)']
         return rows > 0
     
     def create_account(self):
-        sqlc.execute("INSERT INTO accounts VALUES ('{}', '{}', '{}', '{}', '{}')".format(self.username, self.name, self.email, self.password, 1))
+        sqlc.execute("INSERT INTO accounts VALUES ('{}', '{}', '{}', '{}', '{}', '{}')".format(self.username, self.name, self.email, self.password, 1, self.student_id))
         conn.commit()
-        self.create_row_if_not_exists()
+        self.create_table_if_not_exists()
 
     @classmethod
-    def enable_account(self, username):
-        sqlc.execute("UPDATE accounts SET enabled = '{}' WHERE username = '{}'".format(1, username))
+    def enable_account(self, student_id):
+        sqlc.execute("UPDATE accounts SET enabled = '{}' WHERE student_id = '{}'".format(1, student_id))
         conn.commit()
-        return User.from_username(username)
+        return User.from_student_id(student_id)
     
     @classmethod
-    def disable_account(self, username):
-        sqlc.execute("UPDATE accounts SET enabled = '{}' WHERE username = '{}'".format(0, username))
+    def disable_account(self, student_id):
+        sqlc.execute("UPDATE accounts SET enabled = '{}' WHERE student_id = '{}'".format(0, student_id))
         conn.commit()
-        return User.from_username(username)
+        return User.from_student_id(student_id)
     
     @classmethod
-    def remove_account(self, username):
-        user = User.from_username(username)
-        sqlc.execute("DELETE FROM accounts WHERE username = '{}'".format(username))
+    def remove_account(self, student_id):
+        user = User.from_student_id(student_id)
+        sqlc.execute("DELETE FROM accounts WHERE student_id = '{}'".format(student_id))
         conn.commit()
         return user
     
     @classmethod
-    def valid_password(self, username, password):
-        sqlc.execute("SELECT password FROM accounts WHERE username = '{}'".format(username))
+    def valid_password(self, student_id, password):
+        sqlc.execute("SELECT password FROM accounts WHERE student_id = '{}'".format(student_id))
         password_row = decrypted(sqlc.fetchone()['password'])
         return password == password_row
     
-    def create_row_if_not_exists(self):
-        sqlc.execute("CREATE TABLE IF NOT EXISTS '{}' (name TEXT UNIQUE, grade FLOAT, letter TEXT)".format("user_"+self.username))
+    def create_table_if_not_exists(self):
+        sqlc.execute("CREATE TABLE IF NOT EXISTS '{}' (name TEXT UNIQUE, grade FLOAT, letter TEXT)".format("user_"+self.student_id))
         conn.commit()
     
     def update(self, key, value):
-        sqlc.execute("UPDATE accounts SET {} = '{}' WHERE username = '{}'".format(key, value, self.username))
+        sqlc.execute("UPDATE accounts SET {} = '{}' WHERE student_id = '{}'".format(key, value, self.student_id))
         setattr(self, key, value)
         conn.commit()
 
     def save_grades_to_database(self, grades):
         for course in grades:
-            sqlc.execute("INSERT OR REPLACE INTO {} VALUES ('{}', '{}', '{}')".format("user_"+self.username, course.name, course.grade, course.letter_grade))
+            sqlc.execute("INSERT OR REPLACE INTO {} VALUES ('{}', '{}', '{}')".format("user_"+self.student_id, course.name, course.grade, course.letter_grade))
             conn.commit()
 
     def __str__(self):
-        return "{} ({}) [{}]".format(self.name, self.username, self.email)
+        return "{} ({} -- {}) [{}]".format(self.name, self.username, self.student_id, self.email)
 
 def setup():
     """general setup commands"""
@@ -225,12 +216,11 @@ def get_base_url():
     """returns the site's base url, taken from the login page url"""
     return cfg['login_url'].split("/campus")[0] + '/campus/'
 
-def get_schedule_page_url():
-    """returns the url of the schedule page"""
+def get_portal_data():
     url = 'portal/portalOutlineWrapper.xsl?x=portal.PortalOutline&contentType=text/xml&lang=en'
     school_data = br.open(get_base_url() + url)
     try:
-        dom = minidom.parse(school_data)
+        return minidom.parse(school_data)
     except:
         dev_print("Minidom failed parsing (probably not signed in)")
         full = traceback.format_exc()
@@ -238,10 +228,27 @@ def get_schedule_page_url():
         send_admin_email("GN | minidom parse failed", "{}\n\n{}".format(curr_user, full))
         return False
 
-    nodes = dom.getElementsByTagName('Student')
-    if len(nodes) < 1:
+def get_schedule_page_url():
+    """returns the url of the schedule page"""
+    if not curr_user:
         return False
-    node = nodes[0]
+
+    dom = get_portal_data()
+    if not dom:
+        return False
+
+    nodes = dom.getElementsByTagName('Student')
+    node = False
+    for student in nodes:
+        if not student.hasAttribute('studentNumber'):
+            continue
+        curr_student_id = student.getAttribute('studentNumber')
+        if curr_student_id == curr_user.student_id:
+            node = student
+            break
+    if not node:
+        print("Account does not have this student ID")
+        return False
 
     person_id = node.getAttribute('personID')
     first_name = node.getAttribute('firstName')
@@ -305,6 +312,8 @@ def get_class_links(term):
 
 def get_term():
     """returns the current term"""
+    if not curr_user:
+        return False
     schedule_page_url = get_schedule_page_url()
     if not schedule_page_url:
         return -1
@@ -395,6 +404,9 @@ def get_grades():
     to the grades list
     """
     print("Getting grades...")
+    if not curr_user:
+        return False
+    curr_user.create_table_if_not_exists()
     try:
         grades = []
         term = get_term()
@@ -449,8 +461,24 @@ def login(user, shouldDecrypt):
         global curr_user
         # if not error_msg and not status_error:
         if iframe:
-            curr_user = user
-            return True
+
+            dom = get_portal_data()
+            if not dom:
+                curr_user = None
+            else:
+                students = dom.getElementsByTagName('Student')
+                exists = False
+                for student in students:
+                    if not student.hasAttribute('studentNumber'):
+                        continue
+                    curr_student_id = student.getAttribute('studentNumber')
+                    if curr_student_id == user.student_id:
+                        exists = True
+                        break
+                if exists:
+                    curr_user = user
+                    return True
+                    
         else:
             curr_user = None
         
@@ -468,7 +496,7 @@ def logout():
     curr_user = None
 
 # returns array where index 0 element is grade_changed (boolean) and index 1 element is grade string
-def get_grade_string(grades, user):
+def get_grade_string(grades, user, inDatabase):
     """Extracts the grade_string"""
     final_grades = ""
     grade_changed = False
@@ -478,7 +506,9 @@ def get_grade_string(grades, user):
                 grade_string = "{:.1f}% [{}] {}-- {}".format(c.grade, c.letter_grade, (' ' if len(c.letter_grade) is 1 else ''), c.name)
             else:
                 grade_string = "{:.2f}% [{}] {}-- {}".format(c.grade, c.letter_grade, (' ' if len(c.letter_grade) is 1 else ''), c.name)
-            diff = c.diff_grade(user, sqlc)
+            diff = False
+            if inDatabase:
+                diff = c.diff_grade(user, sqlc)
             if diff:
                 grade_changed = True
                 change_word = ('up' if diff > 0.0 else 'down')
@@ -528,46 +558,62 @@ def main():
         if options.setup:
             User.setup_accounts_table()
             print("Setup accounts database")
-        # argument is dictionary
-        elif options.add or options.modify or options.valid or options.infinitecampus:
-            user_data = json.loads(options.add or options.modify or options.valid or options.infinitecampus)
-            username = user_data['username'] or ''
-            if not username:
-                print("Please provide a username")
+        # argument is dictionary with student_id
+        elif options.valid or options.modify:
+            user_data = json.loads(options.modify or options.valid)
+            student_id = user_data['student_id'] if 'student_id' in user_data else False
+            if not student_id:
+                print("Please provide a student ID")
+            else:
+                if User.exists(student_id):
+                    # USER EXISTS
+                    if options.valid:
+                        if not options.z:
+                            print("Please include the encryption salt")
+                            return
+                        if "password" not in user_data:
+                            print("Please provide the password")
+                            return
+                        print(("1" if User.valid_password(student_id, user_data['password']) else "0"))
+                    elif options.modify:
+                        if all (k in user_data for k in ("key", "value")):
+                            user = User.from_student_id(student_id)
+                            new_value = user_data['value']
+                            if user_data['key'] == 'password':
+                                if options.z:
+                                    new_value = encrypted(new_value)
+                                else:
+                                    print("Please include the encryption salt")
+                                    return
+                            user.update(user_data['key'], new_value)
+                            send_admin_email("GN | User Updated", "Updated {} for {}".format(user_data['key'], user))
+                            print("Updated {} for {}".format(user_data['key'], user))
+                        else:
+                            print("Please provide student_id, key, and value")
+                else:
+                    # USER DOES NOT EXIST
+                    if options.valid:
+                        print("0")
+                    elif options.modify:
+                        print("Could not find user with student_id '{}'".format(student_id))
+        # argument is dictionary with username and student_id
+        elif options.add or options.infinitecampus:
+            user_data = json.loads(options.add or options.infinitecampus)
+            username = user_data['username'] if 'username' in user_data else False
+            student_id = user_data['student_id'] if 'student_id' in user_data else False
+            if not username or not student_id:
+                print("Please provide a username and student ID")
             else:
                 if options.infinitecampus:
-                    if all (k in user_data for k in ("username", "password")):
+                    if 'password' in user_data:
                         user = User.from_dict(user_data)
                         print("1" if login(user, False) else "0")
                     else:
-                        print("Please provide a username and password")
+                        print("Please provide a username, password, and student_id")
                 else:
-                    if User.exists(username):
+                    if User.exists(student_id):
                         if options.add:
-                            print("A user with username '{}' already exists. Please use the -e flag instead".format(username))
-                        elif options.valid:
-                            if not options.z:
-                                print("Please include the encryption salt")
-                                return
-                            if "password" not in user_data:
-                                print("Please provide the password with the username")
-                                return
-                            print(("1" if User.valid_password(username, user_data['password']) else "0"))
-                        elif options.modify:
-                            if all (k in user_data for k in ("key", "value")):
-                                user = User.from_username(username)
-                                new_value = user_data['value']
-                                if user_data['key'] == 'password':
-                                    if options.z:
-                                        new_value = encrypted(new_value)
-                                    else:
-                                        print("Please include the encryption salt")
-                                        return
-                                user.update(user_data['key'], new_value)
-                                send_admin_email("GN | User Updated", "Updated {} for {}".format(user_data['key'], user))
-                                print("Updated {} for {}".format(user_data['key'], user))
-                            else:
-                                print("Please provide username, key, and value")
+                            print("A user with student_id '{}' already exists. Please use the -e flag instead".format(student_id))
                     elif options.add:
                         if all (k in user_data for k in ("name", "password", "email")):
                             # If forgot encryption salt, tell them
@@ -581,30 +627,26 @@ def main():
                                 send_welcome_email(user)
                                 print("Added {}".format(user))
                         else:
-                            print("Please provide name, username, password, and email")
-                    elif options.valid:
-                        print("0")
-                    elif options.modify:
-                        print("Could not find user with username '{}'".format(username))
-        # argument is username
+                            print("Please provide name, username, student_id, password, and email")
+        # argument is student_id
         elif options.enable or options.disable or options.remove or options.exists:
-            username = options.enable or options.disable or options.remove or options.exists
-            if not User.exists(username):
+            student_id = options.enable or options.disable or options.remove or options.exists
+            if not User.exists(student_id):
                 if options.enable or options.disable or options.remove:
-                    print("Could not find user with username '{}'".format(username))
+                    print("Could not find user with student_id '{}'".format(student_id))
                 elif options.exists:
                     print("0")
             else:
                 if options.enable:
-                    user = User.enable_account(username)
+                    user = User.enable_account(student_id)
                     send_admin_email("GN | User Enabled", "Enabled {}".format(user))
                     print("Enabled {}".format(user))
                 elif options.disable:
-                    user = User.disable_account(username)
+                    user = User.disable_account(student_id)
                     send_admin_email("GN | User Disabled", "Disabled {}".format(user))
                     print("Disabled {}".format(user))
                 elif options.remove:
-                    user = User.remove_account(username)
+                    user = User.remove_account(student_id)
                     send_admin_email("GN | User Removed", "Removed {}".format(user))
                     print("Removed {}".format(user))
                 elif options.exists:
@@ -628,12 +670,12 @@ def main():
                 print("Please include the encryption salt")
             else:
                 if User.exists(options.go):
-                    do_task(User.from_username(options.go), True)
+                    do_task(User.from_student_id(options.go), True)
                 else:
-                    print("Could not find user with username {}".format(options.go))
+                    print("Could not find user with student_id {}".format(options.go))
         elif options.createall:
             for user in User.get_all_users(''):
-                user.create_row_if_not_exists()
+                user.create_table_if_not_exists()
         else:
             # If not checking single
             if not options.check:
@@ -671,13 +713,12 @@ def do_task(user, inDatabase):
 
         # Print before saving to show changes
         # array: [ grade_changed, string ]
-        final_grades = get_grade_string(grades, user)
+        final_grades = get_grade_string(grades, user, inDatabase)
         # If grade changed and no send email is false, send email
         if (not inDatabase and user.email) or (inDatabase and (options.go or options.loud or (not options.quiet and final_grades[0]))):
             send_grade_email(user.email, final_grades[1])
 
         if inDatabase:
-            user.create_row_if_not_exists()
             user.save_grades_to_database(grades)
 
         dev_print(final_grades[1])
