@@ -46,6 +46,7 @@ conn.row_factory = dict_factory
 sqlc = conn.cursor()
 
 curr_user = None
+dont_send_failed_login_email = False
 
 parser = OptionParser(description='Scrapes grades from infinite campus website')
 
@@ -484,6 +485,8 @@ def login(user, shouldDecrypt):
         
     except (mechanize.HTTPError, mechanize.URLError) as e:
         print("Could not connect to Infinite Campus' servers. Please try again later when it is back up so your credentials can be verified.")
+        global dont_send_failed_login_email
+        dont_send_failed_login_email = True
     
     return False
 
@@ -701,27 +704,34 @@ def main():
 
 def do_task(user, inDatabase):
     try:
+        try_count = 3
         print("Logging in {}...".format(user))
         if not login(user, inDatabase):
             print("Log in failed, probably wrong credentials")
-            send_admin_email("GN | Login failed", "{}".format(user))
+            if try_count > 0:
+                try_count -= 1
+                do_task(user, inDatabase)
+                return
+            if not dont_send_failed_login_email:
+                send_admin_email("GN | Login failed", "{}".format(user))
+            else:
+                global dont_send_failed_login_email
+                dont_send_failed_login_email = False
             return
 
         grades = get_grades()
-        if grades == False:
-            return
+        if grades:
+            # Print before saving to show changes
+            # array: [ grade_changed, string ]
+            final_grades = get_grade_string(grades, user, inDatabase)
+            # If grade changed and no send email is false, send email
+            if (not inDatabase and user.email) or (inDatabase and (options.go or options.loud or (not options.quiet and final_grades[0]))):
+                send_grade_email(user.email, final_grades[1])
 
-        # Print before saving to show changes
-        # array: [ grade_changed, string ]
-        final_grades = get_grade_string(grades, user, inDatabase)
-        # If grade changed and no send email is false, send email
-        if (not inDatabase and user.email) or (inDatabase and (options.go or options.loud or (not options.quiet and final_grades[0]))):
-            send_grade_email(user.email, final_grades[1])
+            if inDatabase:
+                user.save_grades_to_database(grades)
 
-        if inDatabase:
-            user.save_grades_to_database(grades)
-
-        dev_print(final_grades[1])
+            dev_print(final_grades[1])
 
         logout()
     except:
