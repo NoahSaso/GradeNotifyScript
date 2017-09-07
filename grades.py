@@ -323,71 +323,6 @@ def get_page_url(gradesPage):
         mode,
         x))
 
-def get_class_links(term):
-    """loops through the links in the schedule page
-    and adds the grade page links to the link_list array
-    """
-    if not curr_user:
-        return False
-    soup = schedule_page_data
-    table = soup.find('table', cellpadding=2, bgcolor='#A0A0A0')
-
-    # Get links to stuff
-    link_list = []
-    num_blocks = get_num_blocks()
-    if num_blocks == False:
-        return False
-    for row in table.findAll('tr')[1:get_num_blocks()+2]:
-        # Use term array and determine afterwards to use first or second term
-        terms = []
-        for col in row.findAll('td'):
-            atag = col.find('a')
-            if not atag:
-                continue
-            link = atag['href']
-            if 'mailto' in link:
-                link = None
-            terms.append(link)
-        # Choose which term to use based on current term (leaving -1 to signify that term is not the index, it's 1 or 2)
-        if terms and term-1 <= len(terms)-1:
-            link_list.append(terms[term-1])
-    return link_list
-
-def get_term():
-    """returns the current term"""
-    if not curr_user:
-        return -1
-    soup = schedule_page_data
-    terms = soup.findAll('th', {'class':'scheduleHeader'}, align='center')
-    term_dates = []
-    for term in terms:
-        if "(" in term.text:
-            date_begin, date_end = utils.between('(', ')', term.text).split('-')
-            string_to_date = lambda string: datetime.strptime(string, '%m/%d/%y')
-            term_dates.append([string_to_date(date_begin), string_to_date(date_end)])
-    now = datetime.now()
-    if len(term_dates) == 1:
-        return 1
-    elif len(term_dates) == 2:
-        if (term_dates[0][0] <= now <= term_dates[0][1]) or (term_dates[0][1] <= now <= term_dates[1][0]):
-            return 1
-        else:
-            return 2
-    else:
-        return -1
-
-def get_num_blocks():
-    """returns the number of blocks per day"""
-    if not curr_user:
-        return False
-    soup = schedule_page_data
-    blocks = soup.findAll('th', {'class':'scheduleHeader'}, align='center')
-    count = 0
-    for block in blocks:
-        if "(" not in block.text:
-            count += 1
-    return count
-
 def get_all_grades():
     if not curr_user:
         return False
@@ -410,36 +345,6 @@ def get_all_grades():
             courses.append(Course(name, float(grade), letter))
     
     return courses
-
-def get_grades():
-    """opens all pages in the link_list array and adds
-    the last grade percentage and the corresponding class name
-    to the grades list
-    """
-    print("Getting grades...")
-    if not curr_user:
-        return False
-    curr_user.create_table_if_not_exists()
-    try:
-        grades = []
-        term = get_term()
-        if term == -1:
-            dev_print("Failed to get term, maybe password issue, ignoring user")
-            return False
-        else:
-            dev_print("Grabbing grades of schedule from semester...")
-            grades = get_all_grades()
-            dev_print("Got all grades...")
-            return grades
-    except KeyboardInterrupt:
-        sys.exit()
-    except Exception:
-        dev_print("Something bad happened (probably login information failed?)")
-        full = traceback.format_exc()
-        logging.warning("Exception: %s" % full)
-        send_admin_email("GN | get_grades try failed", "{}\n\n{}".format(curr_user, full))
-
-    return False
 
 def login(user, shouldDecrypt):
     """Logs in to the Infinite Campus at the
@@ -748,7 +653,9 @@ def do_task(user, inDatabase):
                 dont_send_failed_login_email = False
             return
         
-        grades = get_grades()
+        dev_print("Grabbing grades of schedule from semester...")
+        curr_user.create_table_if_not_exists()
+        grades = get_all_grades()
         if grades:
             # Print before saving to show changes
             # array: [ grade_changed, string ]
