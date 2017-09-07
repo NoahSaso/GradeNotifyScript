@@ -14,6 +14,7 @@ import logging
 import time
 import getpass
 import utils
+import re
 
 from BeautifulSoup import BeautifulSoup
 from datetime import date, timedelta, datetime
@@ -22,6 +23,33 @@ from xml.dom import minidom
 from binascii import hexlify, unhexlify
 
 from simplecrypt import encrypt, decrypt
+
+import hashlib
+import base64
+
+from Crypto import Random
+from Crypto.Cipher import AES
+
+BS = 16
+pad = lambda s: s + (BS - len(s) % BS) * chr(BS - len(s) % BS)
+unpad = lambda s : s[0:-ord(s[-1])]
+
+class AESCipher:
+
+    def __init__( self, key ):
+        self.key = hashlib.sha256(key.encode('utf-8')).digest()
+
+    def encrypt( self, raw ):
+        raw = pad(raw)
+        iv = Random.new().read( AES.block_size )
+        cipher = AES.new( self.key, AES.MODE_CBC, iv )
+        return base64.b64encode( iv + cipher.encrypt( raw ) )
+
+    def decrypt( self, enc ):
+        enc = base64.b64decode(enc)
+        iv = enc[:16]
+        cipher = AES.new(self.key, AES.MODE_CBC, iv )
+        return unpad(cipher.decrypt( enc[16:] ))
 
 DEV_MODE = getpass.getuser() != 'gradenotify'
 def dev_print(string):
@@ -46,7 +74,11 @@ conn.row_factory = dict_factory
 sqlc = conn.cursor()
 
 curr_user = None
+schedule_page_data = None
+grade_page_data = None
 dont_send_failed_login_email = False
+
+NON_DECIMAL = re.compile(r'[^\d.]+')
 
 parser = OptionParser(description='Scrapes grades from infinite campus website')
 
@@ -75,13 +107,17 @@ parser.add_option('-z', '--salt', action='store', dest='z', help='Encryption sal
 # Example argument: '{"username": "STUDENT_ID_HERE", "password": "PASSWORD_HERE"}'
 parser.add_option('-i', '--infinitecampus', action='store', dest='infinitecampus', metavar='USER_DICTIONARY', help='Check validity of infinite campus credentials')
 
+parser.add_option('-k', action='store_true', dest='konvert')
+
 (options, args) = parser.parse_args()
 
 def encrypted(string):
-    return hexlify(encrypt(options.z, string.encode('utf8')))
+    # return hexlify(encrypt(options.z, string.encode('utf8')))
+    return hexlify(AESCipher(options.z).encrypt(string))
 
 def decrypted(string):
-    return decrypt(options.z, unhexlify(string)).decode('utf8')
+    # return decrypt(options.z, unhexlify(string)).decode('utf8')
+    return AESCipher(options.z).decrypt(unhexlify(string))
 
 class Course:
     """an object for an individual class, contains a grade and class name"""
@@ -168,9 +204,12 @@ class User:
     
     @classmethod
     def valid_password(self, student_id, password):
-        sqlc.execute("SELECT password FROM accounts WHERE student_id = '{}'".format(student_id))
-        password_row = decrypted(sqlc.fetchone()['password'])
-        return password == password_row
+        user = User.from_student_id(student_id)
+        if user:
+            password_row = decrypted(user.password)
+            return password == password_row
+        else:
+            return False
     
     def create_table_if_not_exists(self):
         sqlc.execute("CREATE TABLE IF NOT EXISTS '{}' (name TEXT UNIQUE, grade FLOAT, letter TEXT)".format("user_"+self.student_id))
@@ -178,8 +217,8 @@ class User:
     
     def update(self, key, value):
         sqlc.execute("UPDATE accounts SET {} = '{}' WHERE student_id = '{}'".format(key, value, self.student_id))
-        setattr(self, key, value)
         conn.commit()
+        setattr(self, key, value)
 
     def save_grades_to_database(self, grades):
         for course in grades:
@@ -229,7 +268,7 @@ def get_portal_data():
         send_admin_email("GN | minidom parse failed", "{}\n\n{}".format(curr_user, full))
         return False
 
-def get_schedule_page_url():
+def get_schedule_page_url(gradesPage):
     """returns the url of the schedule page"""
     if not curr_user:
         return False
@@ -268,8 +307,15 @@ def get_schedule_page_url():
     calendar_id = node.getAttribute('calendarID')
     structure_id = node.getAttribute('structureID')
     calendar_name = node.getAttribute('calendarName')
+    
+    if gradesPage:
+        mode = 'grades'
+        x = 'portal.PortalGrades'
+    else:
+        mode = 'schedule'
+        x = 'portal.PortalSchedule'
 
-    return utils.url_fix(get_base_url() + u"portal/portal.xsl?x=portal.PortalOutline&lang=en&personID={}&studentFirstName={}&lastName={}&firstName={}&schoolID={}&calendarID={}&structureID={}&calendarName={}&mode=schedule&x=portal.PortalSchedule&x=resource.PortalOptions".format(
+    return utils.url_fix(get_base_url() + u"portal/portal.xsl?x=portal.PortalOutline&lang=en&personID={}&studentFirstName={}&lastName={}&firstName={}&schoolID={}&calendarID={}&structureID={}&calendarName={}&mode={}&x={}&x=resource.PortalOptions".format(
         person_id,
         first_name,
         last_name,
@@ -277,17 +323,17 @@ def get_schedule_page_url():
         school_id,
         calendar_id,
         structure_id,
-        calendar_name))
+        calendar_name,
+        mode,
+        x))
 
 def get_class_links(term):
     """loops through the links in the schedule page
     and adds the grade page links to the link_list array
     """
-    schedule_page_url = get_schedule_page_url()
-    if not schedule_page_url:
+    if not curr_user:
         return False
-    r = br.open(schedule_page_url)
-    soup = BeautifulSoup(r)
+    soup = schedule_page_data
     table = soup.find('table', cellpadding=2, bgcolor='#A0A0A0')
 
     # Get links to stuff
@@ -314,12 +360,8 @@ def get_class_links(term):
 def get_term():
     """returns the current term"""
     if not curr_user:
-        return False
-    schedule_page_url = get_schedule_page_url()
-    if not schedule_page_url:
         return -1
-    r = br.open(schedule_page_url)
-    soup = BeautifulSoup(r)
+    soup = schedule_page_data
     terms = soup.findAll('th', {'class':'scheduleHeader'}, align='center')
     term_dates = []
     for term in terms:
@@ -340,11 +382,9 @@ def get_term():
 
 def get_num_blocks():
     """returns the number of blocks per day"""
-    schedule_page_url = get_schedule_page_url()
-    if not schedule_page_url:
+    if not curr_user:
         return False
-    r = br.open(schedule_page_url)
-    soup = BeautifulSoup(r)
+    soup = schedule_page_data
     blocks = soup.findAll('th', {'class':'scheduleHeader'}, align='center')
     count = 0
     for block in blocks:
@@ -352,52 +392,28 @@ def get_num_blocks():
             count += 1
     return count
 
-def course_from_page(url_part):
-    """parses the class page at the provided url and returns a course object for it"""
-    page = br.open(get_base_url() + url_part)
-    soup = BeautifulSoup(page)
-    grade = 0.0
-    letter_grade = ''
-
-    # Based on 2 semester per year system
-    # Must change if using trimesters or quarters
-    # Semester grade
-    atags = soup.findAll(name='a', title=re.compile(r"^Task: Semester Grade"), limit=1)
-    if len(atags) < 1:
+def get_all_grades():
+    if not curr_user:
         return False
-    atag = atags[0]
-    # if it doesn't exist, try progress report 2
-    spans = atag.findAll(name='span', attrs={'class':'grayText'}, limit=1)
-    if len(spans) > 0:
-        letter_grade = atag.contents[0].split('<br')[0]
-    else:
-        atags = soup.findAll(name='a', title=re.compile(r"^Task: Progress Grade 2"), limit=1)
-        if len(atags) < 1:
-            return False
-        atag = atags[0]
-        # If it doesn't exist, try progress report 1
-        spans = atag.findAll(name='span', attrs={'class':'grayText'}, limit=1)
-        if len(spans) > 0:
-            letter_grade = atag.contents[0].split('<br')[0]
-        else:
-            atags = soup.findAll(name='a', title=re.compile(r"^Task: Progress Grade 1"), limit=1)
-            if len(atags) < 1:
-                return False
-            atag = atags[0]
-            spans = atag.findAll(name='span', attrs={'class':'grayText'}, limit=1)
-            if len(spans) > 0:
-                letter_grade = atag.contents[0].split('<br')[0]
+    soup = grade_page_data
 
-    if len(spans) < 1:
-        grade = -1.0
-    else:
-        grade = float(spans[0].string[:-1])
+    courses = []
 
-    course_name = soup.findAll(name='div', attrs={'class':'gridTitle'}, limit=1)[0].string
-    course_name = string.replace(course_name, '&amp;', '&')
-    course_name = course_name.strip()
-    course_name = course_name.split(' ', 1)[1]
-    return Course(course_name, grade, letter_grade)
+    in_progress_grades = soup.findAll(name='td', attrs={'class':'inProgressGrade'})
+    for in_prog_grade in in_progress_grades:
+        contents = in_prog_grade.contents
+        if len(contents) == 2:
+            grade = NON_DECIMAL.sub('', contents[0])
+            letter = contents[1].getText().strip()
+            name = in_prog_grade.parent.parent.find('tr').find('td', attrs={'class': 'gradesLink'}).find('a').find('b').getText().strip() # td.inProgressGrade < tr < tbody > tr.find(td.gradesLink) > a > b
+            # manipulate name
+            name = name.replace('&amp;','&').split(' ')
+            name.pop(0)
+            # add course
+            name = " ".join(name)
+            courses.append(Course(name, float(grade), letter))
+    
+    return courses
 
 def get_grades():
     """opens all pages in the link_list array and adds
@@ -415,16 +431,8 @@ def get_grades():
             dev_print("Failed to get term, maybe password issue, ignoring user")
             return False
         else:
-            dev_print("Grabbing schedule...")
-            class_links = get_class_links(term)
-            if not class_links:
-                return False
             dev_print("Grabbing grades of schedule from semester...")
-            for num, link in enumerate(class_links):
-                if link is not None:
-                    course = course_from_page(link)
-                    if course:
-                        grades.append(course)
+            grades = get_all_grades()
             dev_print("Got all grades...")
             return grades
     except:
@@ -461,6 +469,8 @@ def login(user, shouldDecrypt):
         iframe = soup.find('iframe', id='frameDetail', attrs={'name': 'frameDetail'})
 
         global curr_user
+        global schedule_page_data
+        global grade_page_data
         # if not error_msg and not status_error:
         if iframe:
 
@@ -479,6 +489,22 @@ def login(user, shouldDecrypt):
                         break
                 if exists:
                     curr_user = user
+
+                    schedule_page_data = None
+                    for idx in range(3):
+                        schedule_page_data = br.open(get_schedule_page_url(False))
+                        if schedule_page_data:
+                            schedule_page_data = BeautifulSoup(schedule_page_data)
+                            if schedule_page_data:
+                                break
+                    grade_page_data = None
+                    for idx in range(3):
+                        grade_page_data = br.open(get_schedule_page_url(True))
+                        if grade_page_data:
+                            grade_page_data = BeautifulSoup(grade_page_data)
+                            if grade_page_data:
+                                break
+
                     return True
                     
         else:
@@ -563,6 +589,14 @@ def main():
         if options.setup:
             User.setup_accounts_table()
             print("Setup accounts database")
+        elif options.konvert:
+            for user in User.get_all_users(''):
+                try:
+                    old_pass = decrypt(options.z, unhexlify(user.password)).decode('utf8')
+                    new_pass = encrypted(old_pass)
+                    user.update('password', new_pass)
+                except:
+                    print('failed {}'.format(user))
         # argument is dictionary with student_id
         elif options.valid or options.modify:
             user_data = json.loads(options.modify or options.valid)
@@ -719,7 +753,7 @@ def do_task(user, inDatabase):
             else:
                 dont_send_failed_login_email = False
             return
-
+        
         grades = get_grades()
         if grades:
             # Print before saving to show changes
