@@ -528,6 +528,7 @@ def get_grade_string(grades, inDatabase):
                 final_grades += grade_string + "\n"
             if c.new_assignments:
                 for a in c.new_assignments:
+                    grade_changed = True
                     final_grades += "{}: ({}/{}) [{}]\n\n".format(a['assignment_name'], a['score'], a['total'], a['percent'])
     if grade_changed:
         print("A grade changed")
