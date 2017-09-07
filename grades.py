@@ -122,7 +122,7 @@ class Course:
 
     @classmethod
     def course_from_name(self, user, name):
-        sqlc.execute("SELECT * FROM '{}' WHERE name = '{}'".format("user_"+user.student_id, name))
+        sqlc.execute("SELECT * FROM 'user_{}' WHERE name = '{}'".format(user.student_id, name))
         course_row = sqlc.fetchone()
         if course_row:
             try:
@@ -134,14 +134,14 @@ class Course:
             return False
     
     def save(self):
-        sqlc.execute("INSERT OR REPLACE INTO {} VALUES ('{}', '{}', '{}', '{}')".format("user_"+self.user.student_id, self.name, self.grade, self.letter, json.dumps(self.last_assignment)))
+        sqlc.execute("INSERT OR REPLACE INTO 'user_{}' VALUES ('{}', '{}', '{}', '{}')".format(self.user.student_id, self.name, self.grade, self.letter, json.dumps(self.last_assignment)))
         conn.commit()
 
     def diff_grade(self):
         """returns the difference between the current class grade
         and the last one
         """
-        sqlc.execute("SELECT * FROM '{}' WHERE name = '{}'".format("user_"+self.user.student_id, self.name))
+        sqlc.execute("SELECT * FROM 'user_{}' WHERE name = '{}'".format(self.user.student_id, self.name))
         course_row = sqlc.fetchone()
         # Set prev grade to own grade so no difference if grade didn't exist
         prev_grade = (course_row['grade'] if course_row and 'grade' in course_row else self.grade)
@@ -194,18 +194,6 @@ class User:
         sqlc.execute("INSERT INTO accounts VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}')".format(self.username, self.name, self.email, self.password, 1, self.student_id, 0))
         conn.commit()
         self.create_table_if_not_exists()
-
-    @classmethod
-    def enable_account(self, student_id):
-        sqlc.execute("UPDATE accounts SET enabled = '{}' WHERE student_id = '{}'".format(1, student_id))
-        conn.commit()
-        return User.from_student_id(student_id)
-    
-    @classmethod
-    def disable_account(self, student_id):
-        sqlc.execute("UPDATE accounts SET enabled = '{}' WHERE student_id = '{}'".format(0, student_id))
-        conn.commit()
-        return User.from_student_id(student_id)
     
     @classmethod
     def remove_account(self, student_id):
@@ -224,7 +212,7 @@ class User:
             return False
     
     def create_table_if_not_exists(self):
-        sqlc.execute("CREATE TABLE IF NOT EXISTS '{}' (name TEXT UNIQUE, grade FLOAT, letter TEXT, last_assignment TEXT)".format("user_"+self.student_id))
+        sqlc.execute("CREATE TABLE IF NOT EXISTS 'user_{}' (name TEXT UNIQUE, grade FLOAT, letter TEXT, last_assignment TEXT)".format(self.student_id))
         conn.commit()
     
     def update(self, key, value):
