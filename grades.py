@@ -115,16 +115,35 @@ def decrypted(string):
 
 class Course:
     """an object for an individual class, contains a grade and class name"""
-    def __init__(self, name, grade, letter_grade):
+    def __init__(self, name, grade, letter, last_assignment, user):
         self.grade = grade
         self.name = name
-        self.letter_grade = letter_grade
+        self.letter = letter
+        self.last_assignment = last_assignment
+        self.user = user
 
-    def diff_grade(self, user, sqlc):
+    @classmethod
+    def course_from_name(self, user, name):
+        sqlc.execute("SELECT * FROM '{}' WHERE name = '{}'".format("user_"+user.student_id, name))
+        course_row = sqlc.fetchone()
+        if course_row:
+            try:
+                last_assignment = json.loads(course_row.get('last_assignment', "{{}}"))
+            except:
+                last_assignment = {}
+            return Course(course_row['name'], float(course_row['grade']), course_row['letter'], last_assignment, curr_user)
+        else:
+            return False
+    
+    def save(self):
+        sqlc.execute("INSERT OR REPLACE INTO {} VALUES ('{}', '{}', '{}', '{}')".format("user_"+self.user.student_id, self.name, self.grade, self.letter, json.dumps(self.last_assignment)))
+        conn.commit()
+
+    def diff_grade(self):
         """returns the difference between the current class grade
         and the last one
         """
-        sqlc.execute("SELECT * FROM '{}' WHERE name = '{}'".format("user_"+user.student_id, self.name))
+        sqlc.execute("SELECT * FROM '{}' WHERE name = '{}'".format("user_"+self.user.student_id, self.name))
         course_row = sqlc.fetchone()
         # Set prev grade to own grade so no difference if grade didn't exist
         prev_grade = (course_row['grade'] if course_row and 'grade' in course_row else self.grade)
@@ -143,7 +162,7 @@ class User:
     
     @classmethod
     def setup_accounts_table(self):
-        sqlc.execute("CREATE TABLE IF NOT EXISTS accounts (username TEXT, name TEXT, email TEXT, password TEXT, enabled INTEGER, student_id TEXT UNIQUE)")
+        sqlc.execute("CREATE TABLE IF NOT EXISTS accounts (username TEXT, name TEXT, email TEXT, password TEXT, enabled INTEGER, student_id TEXT UNIQUE, premium INTEGER)")
         conn.commit()
 
     @classmethod
@@ -164,6 +183,7 @@ class User:
         user.password = row['password']
         user.enabled = row.get('enabled', 1)
         user.student_id = row['student_id']
+        user.premium = row.get('premium', 0)
         return user
     
     @classmethod
@@ -173,7 +193,7 @@ class User:
         return rows > 0
     
     def create_account(self):
-        sqlc.execute("INSERT INTO accounts VALUES ('{}', '{}', '{}', '{}', '{}', '{}')".format(self.username, self.name, self.email, self.password, 1, self.student_id))
+        sqlc.execute("INSERT INTO accounts VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}')".format(self.username, self.name, self.email, self.password, 1, self.student_id, 0))
         conn.commit()
         self.create_table_if_not_exists()
 
@@ -206,7 +226,7 @@ class User:
             return False
     
     def create_table_if_not_exists(self):
-        sqlc.execute("CREATE TABLE IF NOT EXISTS '{}' (name TEXT UNIQUE, grade FLOAT, letter TEXT)".format("user_"+self.student_id))
+        sqlc.execute("CREATE TABLE IF NOT EXISTS '{}' (name TEXT UNIQUE, grade FLOAT, letter TEXT, last_assignment TEXT)".format("user_"+self.student_id))
         conn.commit()
     
     def update(self, key, value):
@@ -216,11 +236,10 @@ class User:
 
     def save_grades_to_database(self, grades):
         for course in grades:
-            sqlc.execute("INSERT OR REPLACE INTO {} VALUES ('{}', '{}', '{}')".format("user_"+self.student_id, course.name, course.grade, course.letter_grade))
-            conn.commit()
+            course.save()
 
     def __str__(self):
-        return "{} ({} -- {}) [{}]".format(self.name, self.username, self.student_id, self.email)
+        return "{} ({} -- {}) [{}] [{}]".format(self.name, self.username, self.student_id, self.email, self.premium)
 
 def setup():
     """general setup commands"""
@@ -340,10 +359,64 @@ def get_all_grades():
             # manipulate name
             name = name.replace('&amp;','&').split(' ')
             name.pop(0)
-            # add course
             name = " ".join(name)
-            courses.append(Course(name, float(grade), letter))
-    
+            # get assignments
+            # $('div#recentAssignments table.portalTable tbody tr')
+            assignments = {}
+            if curr_user.premium == 1:
+                assignments_tables = soup.findAll(name='table', attrs={'class': 'portalTable'})
+                if len(assignments_tables) < 2:
+                    return False
+                assignments_table = assignments_tables[1]
+                for tr in assignments_table.find('tbody').findAll('tr'):
+                    cont = tr.contents
+                    if len(cont) < 14:
+                        continue
+
+                    course_name = cont[5].getText().replace('&amp;','&').split(' - ')
+                    course_name.pop(0)
+                    course_name = " - ".join(course_name)
+
+                    if course_name not in assignments:
+                        assignments[course_name] = []
+
+                    assignment_name = cont[7].getText().strip()
+                    score = NON_DECIMAL.sub('', cont[9].getText().strip())
+                    total = NON_DECIMAL.sub('', cont[11].getText().strip())
+                    percent = NON_DECIMAL.sub('', cont[13].getText().strip())
+                    
+                    assignments[course_name].append({ 'assignment_name': assignment_name, 'score': score, 'total': total, 'percent': percent })
+
+                    # print("{} -- {} [{}/{}] ({})".format(course_name, assignment_name, score, total, percent))
+            
+            course = Course.course_from_name(curr_user, name)
+
+            if not course:
+                course = Course(name, float(grade), letter, {}, curr_user)
+            
+            if name in assignments:
+                course_assignments = assignments[name]
+
+                new_assignments = []
+                if course.last_assignment and course.last_assignment in course_assignments:
+                    index_of_last = course_assignments.index(course.last_assignment)
+                    new_assignments = course_assignments[:index_of_last]
+                else:
+                    # course grade changed, search for just name if couldn't find whole thing
+                    course_assignments_array = dict((a['assignment_name'], course_assignments.index(a)) for a in course_assignments)
+                    if course.last_assignment and course.last_assignment['assignment_name'] in course_assignments_array:
+                        index_of_last = course_assignments_array[course.last_assignment['assignment_name']]
+                        new_assignments = course_assignments[:index_of_last]
+                
+                course.last_assignment = course_assignments[0]
+                course.new_assignments = new_assignments
+
+            else:
+                # dev_print("No assignments for {} (premium: {})".format(name, curr_user.premium))
+                course.new_assignments = []
+
+            # add course
+            courses.append(course)
     return courses
 
 def login(user, shouldDecrypt):
@@ -441,22 +514,27 @@ def get_grade_string(grades, inDatabase):
     for c in grades:
         if c.grade >= 0.0:
             if c.grade >= 100.0:
-                grade_string = "{:.1f}% [{}] {}-- {}".format(c.grade, c.letter_grade, (' ' if len(c.letter_grade) is 1 else ''), c.name)
+                grade_string = "{:.1f}% [{}] {}-- {}".format(c.grade, c.letter, (' ' if len(c.letter) is 1 else ''), c.name)
             else:
-                grade_string = "{:.2f}% [{}] {}-- {}".format(c.grade, c.letter_grade, (' ' if len(c.letter_grade) is 1 else ''), c.name)
+                grade_string = "{:.2f}% [{}] {}-- {}".format(c.grade, c.letter, (' ' if len(c.letter) is 1 else ''), c.name)
             diff = False
             if inDatabase:
-                diff = c.diff_grade(curr_user, sqlc)
+                diff = c.diff_grade()
+            if c.new_assignments:
+                final_grades += "\n"
             if diff:
                 grade_changed = True
                 change_word = ('up' if diff > 0.0 else 'down')
-                final_grades += "\n".join([grade_string + " [" + change_word + " " + str(abs(diff)) + "% from " + str(c.grade - diff) + "%]", ""])
+                final_grades += grade_string + " [" + change_word + " " + str(abs(diff)) + "% from " + str(c.grade - diff) + "%]\n"
             else:
                 final_grades += grade_string + "\n"
+            if c.new_assignments:
+                for a in c.new_assignments:
+                    final_grades += "{}: ({}/{}) [{}]\n\n".format(a['assignment_name'], a['score'], a['total'], a['percent'])
     if grade_changed:
         print("A grade changed")
 
-    return [grade_changed, final_grades]
+    return [grade_changed, final_grades.strip()]
 
 def send_grade_email(email, message):
     print("Sending grade email to {}".format(email))
