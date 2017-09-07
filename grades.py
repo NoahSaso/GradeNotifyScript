@@ -83,8 +83,6 @@ parser = OptionParser(description='Scrapes grades from infinite campus website')
 # USER
 # Example argument: '{"name": "Noah Saso", "username": "STUDENT_ID_HERE", "password": "PASSWORD_HERE", "email": "EMAIL_HERE", "student_id": "STUDENT_ID_HERE"}'
 parser.add_option('-a', '--add', action='store', dest='add', metavar='USER_DICTIONARY', help='Adds user')
-parser.add_option('-e', '--enable', action='store', dest='enable', metavar='STUDENT_ID', help='Enables user')
-parser.add_option('-d', '--disable', action='store', dest='disable', metavar='STUDENT_ID', help='Disables user')
 parser.add_option('-r', '--remove', action='store', dest='remove', metavar='STUDENT_ID', help='Removes user from database')
 # Example argument: '{"username": "USERNAME_HERE", "key": "email", "value": "NEW_EMAIL_HERE", "student_id": "STUDENT_ID_HERE"}'
 parser.add_option('-m', '--modify', action='store', dest='modify', metavar='USER_DICTIONARY', help='Modifies attribute of user')
@@ -645,23 +643,15 @@ def main():
                         else:
                             print("Please provide name, username, student_id, password, and email")
         # argument is student_id
-        elif options.enable or options.disable or options.remove or options.exists:
-            student_id = options.enable or options.disable or options.remove or options.exists
+        elif options.remove or options.exists:
+            student_id = options.remove or options.exists
             if not User.exists(student_id):
-                if options.enable or options.disable or options.remove:
+                if options.remove:
                     print("Could not find user with student_id '{}'".format(student_id))
                 elif options.exists:
                     print("0")
             else:
-                if options.enable:
-                    user = User.enable_account(student_id)
-                    send_admin_email("GN | User Enabled", "Enabled {}".format(user))
-                    print("Enabled {}".format(user))
-                elif options.disable:
-                    user = User.disable_account(student_id)
-                    send_admin_email("GN | User Disabled", "Disabled {}".format(user))
-                    print("Disabled {}".format(user))
-                elif options.remove:
+                if options.remove:
                     user = User.remove_account(student_id)
                     send_admin_email("GN | User Removed", "Removed {}".format(user))
                     print("Removed {}".format(user))
