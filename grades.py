@@ -432,8 +432,10 @@ def logout():
     curr_user = None
 
 # returns array where index 0 element is grade_changed (boolean) and index 1 element is grade string
-def get_grade_string(grades, user, inDatabase):
+def get_grade_string(grades, inDatabase):
     """Extracts the grade_string"""
+    if not curr_user:
+        return False
     final_grades = ""
     grade_changed = False
     for c in grades:
@@ -444,7 +446,7 @@ def get_grade_string(grades, user, inDatabase):
                 grade_string = "{:.2f}% [{}] {}-- {}".format(c.grade, c.letter_grade, (' ' if len(c.letter_grade) is 1 else ''), c.name)
             diff = False
             if inDatabase:
-                diff = c.diff_grade(user, sqlc)
+                diff = c.diff_grade(curr_user, sqlc)
             if diff:
                 grade_changed = True
                 change_word = ('up' if diff > 0.0 else 'down')
@@ -653,21 +655,28 @@ def do_task(user, inDatabase):
                 dont_send_failed_login_email = False
             return
         
-        dev_print("Grabbing grades of schedule from semester...")
-        curr_user.create_table_if_not_exists()
+        print("Grabbing grades of schedule from semester...")
+        user.create_table_if_not_exists()
         grades = get_all_grades()
         if grades:
             # Print before saving to show changes
             # array: [ grade_changed, string ]
-            final_grades = get_grade_string(grades, user, inDatabase)
-            # If grade changed and no send email is false, send email
-            if (not inDatabase and user.email) or (inDatabase and (options.go or options.loud or (not options.quiet and final_grades[0]))):
-                send_grade_email(user.email, final_grades[1])
+            final_grades = get_grade_string(grades, inDatabase)
+            if final_grades:
+                # If grade changed and no send email is false, send email
+                if (not inDatabase and user.email) or (inDatabase and (options.go or options.loud or (not options.quiet and final_grades[0]))):
+                    send_grade_email(user.email, final_grades[1])
 
-            if inDatabase:
-                user.save_grades_to_database(grades)
+                if inDatabase:
+                    user.save_grades_to_database(grades)
 
-            dev_print(final_grades[1])
+                dev_print(final_grades[1])
+            else:
+                print("Did not get grade_string")
+                send_admin_email("GN | not grade_string", "{}\n\n{}".format(user, final_grades))
+        else:
+            print("Did not get grades")
+            send_admin_email("GN | not grades", "{}\n\n{}".format(user, grades))
 
         logout()
     except KeyboardInterrupt:
