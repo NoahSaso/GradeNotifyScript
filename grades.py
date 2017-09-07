@@ -22,8 +22,6 @@ from optparse import OptionParser
 from xml.dom import minidom
 from binascii import hexlify, unhexlify
 
-from simplecrypt import encrypt, decrypt
-
 import hashlib
 import base64
 
@@ -107,16 +105,12 @@ parser.add_option('-z', '--salt', action='store', dest='z', help='Encryption sal
 # Example argument: '{"username": "STUDENT_ID_HERE", "password": "PASSWORD_HERE"}'
 parser.add_option('-i', '--infinitecampus', action='store', dest='infinitecampus', metavar='USER_DICTIONARY', help='Check validity of infinite campus credentials')
 
-parser.add_option('-k', action='store_true', dest='konvert')
-
 (options, args) = parser.parse_args()
 
 def encrypted(string):
-    # return hexlify(encrypt(options.z, string.encode('utf8')))
     return hexlify(AESCipher(options.z).encrypt(string))
 
 def decrypted(string):
-    # return decrypt(options.z, unhexlify(string)).decode('utf8')
     return AESCipher(options.z).decrypt(unhexlify(string))
 
 class Course:
@@ -589,14 +583,6 @@ def main():
         if options.setup:
             User.setup_accounts_table()
             print("Setup accounts database")
-        elif options.konvert:
-            for user in User.get_all_users(''):
-                try:
-                    old_pass = decrypt(options.z, unhexlify(user.password)).decode('utf8')
-                    new_pass = encrypted(old_pass)
-                    user.update('password', new_pass)
-                except:
-                    print('failed {}'.format(user))
         # argument is dictionary with student_id
         elif options.valid or options.modify:
             user_data = json.loads(options.modify or options.valid)
