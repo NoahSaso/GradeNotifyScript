@@ -404,7 +404,8 @@ def get_all_grades():
                     course_assignments_array = dict((a['assignment_name'], course_assignments.index(a)) for a in course_assignments)
                     if course.last_assignment and course.last_assignment['assignment_name'] in course_assignments_array:
                         index_of_last = course_assignments_array[course.last_assignment['assignment_name']]
-                        new_assignments = course_assignments[:index_of_last]
+                        index_with_prev_last = index_of_last + 1
+                        new_assignments = course_assignments[:index_with_prev_last]
                 
                 course.last_assignment = course_assignments[0]
                 course.new_assignments = new_assignments
