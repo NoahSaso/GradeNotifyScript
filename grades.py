@@ -663,12 +663,14 @@ def do_task(user, inDatabase):
             # array: [ grade_changed, string ]
             final_grades = get_grade_string(grades, inDatabase)
             if final_grades:
+                
+                print("Got them")
+                if inDatabase:
+                    user.save_grades_to_database(grades)
+                
                 # If grade changed and no send email is false, send email
                 if (not inDatabase and user.email) or (inDatabase and (options.go or options.loud or (not options.quiet and final_grades[0]))):
                     send_grade_email(user.email, final_grades[1])
-
-                if inDatabase:
-                    user.save_grades_to_database(grades)
 
                 dev_print(final_grades[1])
             else:
