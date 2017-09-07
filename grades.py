@@ -264,7 +264,7 @@ def get_portal_data():
         send_admin_email("GN | minidom parse failed", "{}\n\n{}".format(curr_user, full))
         return False
 
-def get_schedule_page_url(gradesPage):
+def get_page_url(gradesPage):
     """returns the url of the schedule page"""
     if not curr_user:
         return False
@@ -490,14 +490,14 @@ def login(user, shouldDecrypt):
 
                     schedule_page_data = None
                     for idx in range(3):
-                        schedule_page_data = br.open(get_schedule_page_url(False))
+                        schedule_page_data = br.open(get_page_url(False))
                         if schedule_page_data:
                             schedule_page_data = BeautifulSoup(schedule_page_data)
                             if schedule_page_data:
                                 break
                     grade_page_data = None
                     for idx in range(3):
-                        grade_page_data = br.open(get_schedule_page_url(True))
+                        grade_page_data = br.open(get_page_url(True))
                         if grade_page_data:
                             grade_page_data = BeautifulSoup(grade_page_data)
                             if grade_page_data:
