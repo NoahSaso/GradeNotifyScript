@@ -256,8 +256,8 @@ def get_portal_data():
     try:
         return minidom.parse(school_data)
     except KeyboardInterrupt:
-        sys.exit(1)
-    except:
+        sys.exit()
+    except Exception:
         dev_print("Minidom failed parsing (probably not signed in)")
         full = traceback.format_exc()
         logging.warning("Exception: %s" % full)
@@ -432,8 +432,8 @@ def get_grades():
             dev_print("Got all grades...")
             return grades
     except KeyboardInterrupt:
-        sys.exit(1)
-    except:
+        sys.exit()
+    except Exception:
         dev_print("Something bad happened (probably login information failed?)")
         full = traceback.format_exc()
         logging.warning("Exception: %s" % full)
@@ -511,7 +511,7 @@ def login(user, shouldDecrypt):
         dont_send_failed_login_email = False
         
     except KeyboardInterrupt:
-        sys.exit(1)
+        sys.exit()
     except (mechanize.HTTPError, mechanize.URLError) as e:
         print("Could not connect to Infinite Campus' servers. Please try again later when it is back up so your credentials can be verified.")
         dont_send_failed_login_email = True
@@ -726,8 +726,8 @@ def main():
         conn.close()
 
     except KeyboardInterrupt:
-        sys.exit(1)
-    except:
+        sys.exit()
+    except Exception:
         full = traceback.format_exc()
         logging.warning("Exception: %s" % full)
         send_admin_email("GN | Main try failed", "{}".format(full))
@@ -764,8 +764,8 @@ def do_task(user, inDatabase):
 
         logout()
     except KeyboardInterrupt:
-        sys.exit(1)
-    except:
+        sys.exit()
+    except Exception:
         print("Doing task failed, probably login information failed?")
         full = traceback.format_exc()
         logging.warning("Exception: %s" % full)
