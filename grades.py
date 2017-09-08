@@ -516,12 +516,12 @@ def get_grade_string(grades, inDatabase, showAll):
     grade_changed = False
     for c in grades:
         if c.grade >= 0.0:
+            if c.new_assignments and len(final_grades) > 0:
+                final_grades += "\n"
             final_grades += "{}% [{}]: {}".format(c.grade, c.letter, c.name)
             diff = False
             if inDatabase:
                 diff = c.diff_grade()
-            if c.new_assignments and len(final_grades) > 0:
-                final_grades += "\n"
             if diff:
                 grade_changed = True
                 change_word = ('up' if diff > 0.0 else 'down')
