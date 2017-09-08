@@ -523,8 +523,6 @@ def get_grade_string(grades, inDatabase, showAll):
             diff = False
             if inDatabase:
                 diff = c.diff_grade()
-            if c.new_assignments and len(final_grades) > 0:
-                final_grades += "\n"
             if diff:
                 grade_changed = True
                 change_word = ('up' if diff > 0.0 else 'down')
@@ -534,7 +532,8 @@ def get_grade_string(grades, inDatabase, showAll):
             if c.new_assignments:
                 grade_changed = True
                 for a in c.new_assignments:
-                    final_grades += "{}: ({}/{}) [{}]\n\n".format(a['assignment_name'], a['score'], a['total'], a['percent'])
+                    final_grades += "{}: ({}/{}) [{}%]\n".format(a['assignment_name'], a['score'], a['total'], a['percent'])
+                final_grades += "\n"
     if grade_changed:
         print("A grade changed")
     else:
