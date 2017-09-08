@@ -92,7 +92,7 @@ parser.add_option('-l', '--list', action='store_true', dest='list', help='Get li
 parser.add_option('-c', '--check', action='store', dest='check', metavar='USER_DICTIONARY', help='Check specific user')
 # Example argument: '{"username": "USERNAME_HERE", "password": "PASSWORD_HERE", "student_id": "STUDENT_ID_HERE"}'
 parser.add_option('-v', '--valid', action='store', dest='valid', metavar='USER_DICTIONARY', help='Verify username and password valid pair')
-parser.add_option('-g', '--go', action='store', dest='go', metavar='STUDENT_ID', help='Sends grades to user')
+parser.add_option('-g', '--go', action='store', dest='go', metavar='STUDENT_ID:SEND', help='Sends grades to user')
 parser.add_option('-y', action='store_true', dest='createall', help='Creates database for all users in accounts table if not exist')
 
 # OTHER
@@ -699,6 +699,10 @@ def main():
             if not options.z:
                 print("Please include the encryption salt")
             else:
+                if ':' in options.go:
+                    student_id = options.go.split(':')[0]
+                else:
+                    student_id = options.go
                 if User.exists(options.go):
                     do_task(User.from_student_id(options.go), True)
                 else:
@@ -763,7 +767,11 @@ def do_task(user, inDatabase):
                     user.save_grades_to_database(grades)
                 
                 # If grade changed and no send email is false, send email
-                if (not inDatabase and user.email) or (inDatabase and (options.go or options.loud or (not options.quiet and final_grades[0]))):
+                if options.go:
+                    should_send = options.go.split(':')[1] == '1'
+                else:
+                    should_send = (user.email and not inDatabase) or (inDatabase and (options.loud or (final_grades[0] and not options.quiet)))
+                if should_send:
                     send_grade_email(email_to_use, email_to_use == user.phone_email, final_grades[1])
 
                 dev_print(final_grades[1])
