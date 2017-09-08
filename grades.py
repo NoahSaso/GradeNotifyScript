@@ -540,9 +540,9 @@ def get_grade_string(grades, inDatabase, showAll):
 
     return [grade_changed, final_grades.strip()]
 
-def send_grade_email(email, message):
+def send_grade_email(email, isPhone, message):
     print("Sending grade email to {}".format(email))
-    utils.send_email(cfg['smtp_address'], cfg['smtp_username'], cfg['smtp_password'], email, 'Grade Alert', message)
+    utils.send_email(cfg['smtp_address'], cfg['smtp_username'], cfg['smtp_password'], email, '' if isPhone else 'Grade Alert', message)
 
 def send_welcome_email(user):
 
@@ -762,7 +762,7 @@ def do_task(user, inDatabase):
                 
                 # If grade changed and no send email is false, send email
                 if (not inDatabase and user.email) or (inDatabase and (options.go or options.loud or (not options.quiet and final_grades[0]))):
-                    send_grade_email(email_to_use, final_grades[1])
+                    send_grade_email(email_to_use, email_to_use == user.phone_email, final_grades[1])
 
                 dev_print(final_grades[1])
             else:
