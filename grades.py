@@ -480,16 +480,29 @@ def login(user, shouldDecrypt):
     except (mechanize.HTTPError, mechanize.URLError) as e:
         print("Could not connect to Infinite Campus' servers. Please try again later when it is back up so your credentials can be verified.")
         dont_send_failed_login_email = True
+    except Exception:
+        print("Logging in failed")
+        full = traceback.format_exc()
+        logging.warning("Exception: %s" % full)
+        send_admin_email("GN | login try failed", "{}\n\n{}".format(user, full))
     
     return False
 
 def logout():
     """Logs out of Infinite Campus
     """
-    br.open(get_base_url() + 'logoff.jsp')
+    try:
+        br.open(get_base_url() + 'logoff.jsp')
 
-    global curr_user
-    curr_user = None
+        global curr_user
+        curr_user = None
+    except KeyboardInterrupt:
+        sys.exit()
+    except Exception:
+        print("Logging out failed")
+        full = traceback.format_exc()
+        logging.warning("Exception: %s" % full)
+        send_admin_email("GN | logout try failed", "{}\n\n{}".format(curr_user, full))
 
 # returns array where index 0 element is grade_changed (boolean) and index 1 element is grade string
 def get_grade_string(grades, inDatabase):
