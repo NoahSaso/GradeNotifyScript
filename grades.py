@@ -228,7 +228,7 @@ class User:
             course.save()
 
     def __str__(self):
-        return "{} ({} -- {}) [{}] [{}]".format(self.name, self.username, self.student_id, self.email, self.premium)
+        return "{} ({} -- {}) [{} / {}] [{}]".format(self.name, self.username, self.student_id, self.email, self.phone_email, self.premium)
 
 def setup():
     """general setup commands"""
