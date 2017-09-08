@@ -516,7 +516,7 @@ def get_grade_string(grades, inDatabase, showAll):
     grade_changed = False
     for c in grades:
         if c.grade >= 0.0:
-            final_grades += "{}: {}% [{}]".format(c.grade, c.letter, c.name)
+            final_grades += "{}% [{}]: {}".format(c.grade, c.letter, c.name)
             diff = False
             if inDatabase:
                 diff = c.diff_grade()
