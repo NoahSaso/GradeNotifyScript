@@ -532,11 +532,14 @@ def get_grade_string(grades, inDatabase, showAll):
             elif showAll or c.new_assignments:
                 final_grades += grade_string + "\n"
             if c.new_assignments:
+                grade_changed = True
                 for a in c.new_assignments:
-                    grade_changed = True
                     final_grades += "{}: ({}/{}) [{}]\n\n".format(a['assignment_name'], a['score'], a['total'], a['percent'])
     if grade_changed:
         print("A grade changed")
+    else:
+        # if no grades changed, don't put spaces -- will only matter if manual testing
+        final_grades = final_grades.replace("\n\n", "\n")
 
     return [grade_changed, final_grades.strip()]
 
