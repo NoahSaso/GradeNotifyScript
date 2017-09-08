@@ -768,7 +768,7 @@ def do_task(user, inDatabase):
                 
                 # If grade changed and no send email is false, send email
                 if options.go:
-                    should_send = options.go.split(':')[1] == '1'
+                    should_send = options.go.split(':')[1] == '1' if ':' in options.go else True
                 else:
                     should_send = (user.email and not inDatabase) or (inDatabase and (options.loud or (final_grades[0] and not options.quiet)))
                 if should_send:
