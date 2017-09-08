@@ -102,6 +102,8 @@ parser.add_option('-s', '--setup', action='store_true', dest='setup', help='Setu
 parser.add_option('-z', '--salt', action='store', dest='z', help='Encryption salt')
 # Example argument: '{"username": "STUDENT_ID_HERE", "password": "PASSWORD_HERE"}'
 parser.add_option('-i', '--infinitecampus', action='store', dest='infinitecampus', metavar='USER_DICTIONARY', help='Check validity of infinite campus credentials')
+# Example argument: '{"table": "TABLE_HERE", "method": "add_column", "name": "NAME_HERE", "type": "TYPE_HERE"}'
+parser.add_option('-d', '--database', action='store', dest='database', metavar='DICTIONARY', help='Modify database')
 
 (options, args) = parser.parse_args()
 
@@ -182,6 +184,7 @@ class User:
         user.enabled = row.get('enabled', 1)
         user.student_id = row['student_id']
         user.premium = row.get('premium', 0)
+        user.phone_email = row.get('phone_email', '')
         return user
     
     @classmethod
@@ -505,7 +508,7 @@ def logout():
         send_admin_email("GN | logout try failed", "{}\n\n{}".format(curr_user, full))
 
 # returns array where index 0 element is grade_changed (boolean) and index 1 element is grade string
-def get_grade_string(grades, inDatabase):
+def get_grade_string(grades, inDatabase, showAll):
     """Extracts the grade_string"""
     if not curr_user:
         return False
@@ -520,13 +523,13 @@ def get_grade_string(grades, inDatabase):
             diff = False
             if inDatabase:
                 diff = c.diff_grade()
-            if c.new_assignments:
+            if c.new_assignments and len(final_grades) > 0:
                 final_grades += "\n"
             if diff:
                 grade_changed = True
                 change_word = ('up' if diff > 0.0 else 'down')
                 final_grades += grade_string + " [" + change_word + " " + str(abs(diff)) + "% from " + str(c.grade - diff) + "%]\n"
-            else:
+            elif showAll or c.new_assignments:
                 final_grades += grade_string + "\n"
             if c.new_assignments:
                 for a in c.new_assignments:
@@ -575,6 +578,22 @@ def main():
         if options.setup:
             User.setup_accounts_table()
             print("Setup accounts database")
+        elif options.database:
+            try:
+                data = json.loads(options.database)
+                if all (k in data for k in ("table", "method", "name", "type")):
+                    if data['method'] == 'add_column':
+                        sqlc.execute("ALTER TABLE '{}' ADD '{}' '{}'".format(data['table'], data['name'], data['type']))
+                        conn.commit()
+                    else:
+                        print("Unrecognized method '{}'".format(data['method']))
+                else:
+                    print("Please provide table, method, name, and type")
+            except KeyboardInterrupt:
+                sys.exit()
+            except Exception:
+                full = traceback.format_exc()
+                logging.warning("Exception: %s" % full)
         # argument is dictionary with student_id
         elif options.valid or options.modify:
             user_data = json.loads(options.modify or options.valid)
@@ -732,7 +751,9 @@ def do_task(user, inDatabase):
         if grades:
             # Print before saving to show changes
             # array: [ grade_changed, string ]
-            final_grades = get_grade_string(grades, inDatabase)
+            # if 'not user.phone_email', send full text, if user.phone_email exists, use short
+            email_to_use = (user.phone_email or user.email) if user.premium == 1 else user.email
+            final_grades = get_grade_string(grades, inDatabase, email_to_use != user.phone_email or options.go)
             if final_grades:
                 
                 print("Got them")
@@ -741,7 +762,7 @@ def do_task(user, inDatabase):
                 
                 # If grade changed and no send email is false, send email
                 if (not inDatabase and user.email) or (inDatabase and (options.go or options.loud or (not options.quiet and final_grades[0]))):
-                    send_grade_email(user.email, final_grades[1])
+                    send_grade_email(email_to_use, final_grades[1])
 
                 dev_print(final_grades[1])
             else:
