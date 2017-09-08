@@ -51,7 +51,7 @@ class AESCipher:
 
 DEV_MODE = getpass.getuser() != 'gradenotify'
 def dev_print(string):
-    if DEV_MODE:
+    if DEV_MODE or options.go:
         print(string)
 
 DIRNAME = os.path.dirname(os.path.realpath(__file__))
