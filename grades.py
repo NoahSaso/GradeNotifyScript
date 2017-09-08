@@ -520,6 +520,8 @@ def get_grade_string(grades, inDatabase, showAll):
             diff = False
             if inDatabase:
                 diff = c.diff_grade()
+            if c.new_assignments and len(final_grades) > 0:
+                final_grades += "\n"
             if diff:
                 grade_changed = True
                 change_word = ('up' if diff > 0.0 else 'down')
