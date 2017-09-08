@@ -517,9 +517,9 @@ def get_grade_string(grades, inDatabase, showAll):
     for c in grades:
         if c.grade >= 0.0:
             if c.grade >= 100.0:
-                grade_string = "{:.1f}% [{}] {}-- {}".format(c.grade, c.letter, (' ' if len(c.letter) is 1 else ''), c.name)
+                grade_string = "{:.1f}% [{}]: {}".format(c.grade, c.letter, c.name)
             else:
-                grade_string = "{:.2f}% [{}] {}-- {}".format(c.grade, c.letter, (' ' if len(c.letter) is 1 else ''), c.name)
+                grade_string = "{:.2f}% [{}]: {}".format(c.grade, c.letter, c.name)
             diff = False
             if inDatabase:
                 diff = c.diff_grade()
