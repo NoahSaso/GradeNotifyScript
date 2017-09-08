@@ -703,10 +703,10 @@ def main():
                     student_id = options.go.split(':')[0]
                 else:
                     student_id = options.go
-                if User.exists(options.go):
-                    do_task(User.from_student_id(options.go), True)
+                if User.exists(student_id):
+                    do_task(User.from_student_id(student_id), True)
                 else:
-                    print("Could not find user with student_id {}".format(options.go))
+                    print("Could not find user with student_id {}".format(student_id))
         elif options.createall:
             for user in User.get_all_users(''):
                 user.create_table_if_not_exists()
