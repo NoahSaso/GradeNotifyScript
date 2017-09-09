@@ -210,7 +210,7 @@ class User:
         user = User.from_student_id(student_id)
         if user:
             password_row = decrypted(user.password)
-            return password == password_row
+            return user if password == password_row else False
         else:
             return False
     
@@ -611,7 +611,11 @@ def main():
                         if "password" not in user_data:
                             print("Please provide the password")
                             return
-                        print(("1" if User.valid_password(student_id, user_data['password']) else "0"))
+                        user = User.valid_password(student_id, user_data['password'])
+                        if user:
+                            print(json.dumps({'student_id': user.student_id, 'username': user.username, 'name': user.name, 'premium': user.premium == 1, 'phone_email': user.phone_email}))
+                        else:
+                            print("0")
                     elif options.modify:
                         if all (k in user_data for k in ("key", "value")):
                             user = User.from_student_id(student_id)
