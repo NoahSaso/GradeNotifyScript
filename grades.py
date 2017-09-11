@@ -779,7 +779,8 @@ def do_task(user, inDatabase):
                 else:
                     should_send = (user.email and not inDatabase) or (inDatabase and (options.loud or (final_grades[0] and not options.quiet)))
                 if should_send:
-                    send_grade_email(email_to_use, email_to_use == user.phone_email, final_grades[1])
+                    # send_grade_email(email_to_use, email_to_use == user.phone_email, final_grades[1])
+                    print("didnt send email because lmao")
 
                 dev_print(final_grades[1])
             else:
