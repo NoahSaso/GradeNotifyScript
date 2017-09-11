@@ -104,6 +104,7 @@ parser.add_option('-z', '--salt', action='store', dest='z', help='Encryption sal
 parser.add_option('-i', '--infinitecampus', action='store', dest='infinitecampus', metavar='USER_DICTIONARY', help='Check validity of infinite campus credentials')
 # Example argument: '{"table": "TABLE_HERE", "method": "add_column", "name": "NAME_HERE", "type": "TYPE_HERE"}'
 parser.add_option('-d', '--database', action='store', dest='database', metavar='DICTIONARY', help='Modify database')
+parser.add_option('-j', '--json', action='store_true', dest='json', help='Output json')
 
 (options, args) = parser.parse_args()
 
@@ -229,6 +230,9 @@ class User:
 
     def __str__(self):
         return "{} ({} -- {}) [{} / {}] [{}]".format(self.name, self.username, self.student_id, self.email, self.phone_email, self.premium)
+    
+    def json(self):
+        return json.dumps({'student_id': self.student_id, 'username': self.username, 'name': self.name, 'premium': self.premium == 1, 'email': self.email, 'phone_email': self.phone_email})
 
 def setup():
     """general setup commands"""
@@ -617,7 +621,7 @@ def main():
                             return
                         user = User.valid_password(student_id, user_data['password'])
                         if user:
-                            print(json.dumps({'student_id': user.student_id, 'username': user.username, 'name': user.name, 'premium': user.premium == 1, 'phone_email': user.phone_email}))
+                            print(user.json())
                         else:
                             print("0")
                     elif options.modify:
@@ -691,12 +695,23 @@ def main():
         elif options.list:
             disabled_users = []
             enabled_users = []
-            for user in User.get_all_users(''):
-                if user.enabled == 1:
-                    enabled_users.append(str(user))
-                else:
-                    disabled_users.append(str(user))
-            final_string = "\n".join([  "DISABLED:\n",
+            if options.json:
+                for user in User.get_all_users(''):
+                    if user.enabled == 1:
+                        enabled_users.append(user.json())
+                    else:
+                        disabled_users.append(user.json())
+                final_string = json.dumps({
+                    'disabled': disabled_users,
+                    'enabled': enabled_users
+                });
+            else:
+                for user in User.get_all_users(''):
+                    if user.enabled == 1:
+                        enabled_users.append(str(user))
+                    else:
+                        disabled_users.append(str(user))
+                final_string = "\n".join([  "DISABLED:\n",
                                         "\n".join(sorted(disabled_users, key=str.lower) or ['No disabled users']),
                                         "\nENABLED:\n",
                                         "\n".join(sorted(enabled_users, key=str.lower) or ['No enabled users'])
