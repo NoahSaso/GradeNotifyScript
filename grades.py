@@ -232,7 +232,7 @@ class User:
         return "{} ({} -- {}) [{} / {}] [{}]".format(self.name, self.username, self.student_id, self.email, self.phone_email, self.premium)
     
     def json(self):
-        return json.dumps({'student_id': self.student_id, 'username': self.username, 'name': self.name, 'premium': self.premium == 1, 'email': self.email, 'phone_email': self.phone_email})
+        return {'student_id': self.student_id, 'username': self.username, 'name': self.name, 'premium': self.premium == 1, 'email': self.email, 'phone_email': self.phone_email}
 
 def setup():
     """general setup commands"""
@@ -621,7 +621,7 @@ def main():
                             return
                         user = User.valid_password(student_id, user_data['password'])
                         if user:
-                            print(user.json())
+                            print(json.dumps(user.json()))
                         else:
                             print("0")
                     elif options.modify:
