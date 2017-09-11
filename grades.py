@@ -642,7 +642,6 @@ def main():
                                     do_task(user, True)
                                 else:
                                     print("Please include the encryption salt to send a text update on modification")
-                                    return
                             print("Updated {} for {}".format(user_data['key'], user))
                         else:
                             print("Please provide student_id, key, and value")
