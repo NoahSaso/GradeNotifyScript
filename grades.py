@@ -342,7 +342,7 @@ def get_all_grades():
     for in_prog_grade in in_progress_grades:
         contents = in_prog_grade.contents
         if len(contents) == 2:
-            grade = NON_DECIMAL.sub('', contents[0])
+            grade = float(NON_DECIMAL.sub('', contents[0]))
             letter = contents[1].getText().strip()
             name = in_prog_grade.parent.parent.find('tr').find('td', attrs={'class': 'gradesLink'}).find('a').find('b').getText().strip() # td.inProgressGrade < tr < tbody > tr.find(td.gradesLink) > a > b
             # manipulate name
