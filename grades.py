@@ -229,7 +229,7 @@ class User:
             course.save()
 
     def __str__(self):
-        return "{} ({} -- {}) [{} / {}] [{}]".format(self.name, self.username, self.student_id, self.email, self.phone_email, self.premium)
+        return "{} ({} -- {}) [{} / {}] [{} {}]".format(self.name, self.username, self.student_id, self.email, self.phone_email, self.enabled, self.premium)
     
     def json(self):
         return {'student_id': self.student_id, 'username': self.username, 'name': self.name, 'premium': self.premium == 1, 'email': self.email, 'phone_email': self.phone_email}
