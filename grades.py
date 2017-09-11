@@ -519,13 +519,13 @@ def get_grade_string(grades, inDatabase, showAll):
     grade_changed = False
     for c in grades:
         if c.grade >= 0.0:
-            if c.new_assignments and len(final_grades) > 0:
-                final_grades += "\n"
-            if showAll or c.new_assignments:
-                final_grades += "{}% [{}]: {}".format(c.grade, c.letter, c.name)
             diff = False
             if inDatabase:
                 diff = c.diff_grade()
+            if c.new_assignments and len(final_grades) > 0:
+                final_grades += "\n"
+            if showAll or c.new_assignments or diff:
+                final_grades += "{}% [{}]: {}".format(c.grade, c.letter, c.name)
             if diff:
                 grade_changed = True
                 change_word = ('up' if diff > 0.0 else 'down')
@@ -779,8 +779,7 @@ def do_task(user, inDatabase):
                 else:
                     should_send = (user.email and not inDatabase) or (inDatabase and (options.loud or (final_grades[0] and not options.quiet)))
                 if should_send:
-                    # send_grade_email(email_to_use, email_to_use == user.phone_email, final_grades[1])
-                    print("didnt send email because lmao")
+                    send_grade_email(email_to_use, email_to_use == user.phone_email, final_grades[1])
 
                 dev_print(final_grades[1])
             else:
