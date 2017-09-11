@@ -383,6 +383,9 @@ def get_all_grades():
             if not course:
                 course = Course(name, float(grade), letter, {}, curr_user)
             
+            course.grade = grade
+            course.letter = letter
+            
             if name in assignments:
                 course_assignments = assignments[name]
 
