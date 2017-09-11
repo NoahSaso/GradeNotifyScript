@@ -562,7 +562,7 @@ def send_welcome_email(user):
     message = "\n".join([
         "Hey {},".format(first_name),
         "",
-        "You have signed up for GradeNotify. About every 30 minutes, the system will scan your grades and email you an update if anything is different from the previous scan. Right now, I only send the cumulative grades of each class (not individual assignments). More detailed reports will come soon.",
+        "You have signed up for Grade Notify. About every 30 minutes, the system will scan your grades and email you an update if anything is different from the previous scan. Right now, I only send the cumulative grades of each class (not individual assignments). More detailed reports will come soon.",
         "",
         "You can reply to this email if you have any questions or issues.",
         "",
@@ -636,6 +636,13 @@ def main():
                                     return
                             user.update(user_data['key'], new_value)
                             send_admin_email("GN | User Updated", "Updated {} for {}".format(user_data['key'], user))
+                            if user_data['key'] == 'phone_email':
+                                if options.z:
+                                    options.go = "{}:1".format(user.student_id)
+                                    do_task(user, True)
+                                else:
+                                    print("Please include the encryption salt to send a text update on modification")
+                                    return
                             print("Updated {} for {}".format(user_data['key'], user))
                         else:
                             print("Please provide student_id, key, and value")
