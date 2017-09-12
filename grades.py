@@ -759,14 +759,9 @@ def main():
 
 def do_task(user, inDatabase):
     try:
-        try_count = 3
         print("Logging in {}...".format(user))
         if not login(user, inDatabase):
             print("Log in failed, probably wrong credentials")
-            if try_count > 0:
-                try_count -= 1
-                do_task(user, inDatabase)
-                return
             if not dont_send_failed_login_email:
                 send_admin_email("GN | Login failed", "{}".format(user))
             else:
