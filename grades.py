@@ -764,7 +764,8 @@ def do_task(user, inDatabase):
         if not login(user, inDatabase):
             print("Log in failed, probably wrong credentials")
             if not dont_send_failed_login_email:
-                send_admin_email("GN | Login failed", "{}".format(user))
+                # send_admin_email("GN | Login failed", "{}".format(user))
+                print('didnt send admin email but login failed')
             else:
                 dont_send_failed_login_email = False
             return
