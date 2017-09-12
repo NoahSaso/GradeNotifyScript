@@ -760,6 +760,7 @@ def main():
 def do_task(user, inDatabase):
     try:
         print("Logging in {}...".format(user))
+        global dont_send_failed_login_email
         if not login(user, inDatabase):
             print("Log in failed, probably wrong credentials")
             if not dont_send_failed_login_email:
