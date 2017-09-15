@@ -394,18 +394,20 @@ def get_all_grades():
             
             if name in assignments:
                 course_assignments = assignments[name]
-
                 new_assignments = []
                 if course.last_assignment and course.last_assignment in course_assignments:
                     index_of_last = course_assignments.index(course.last_assignment)
                     new_assignments = course_assignments[:index_of_last]
                 else:
-                    # course grade changed, search for just name if couldn't find whole thing
+                    # specific assignment grade changed or doesn't exist, search for just name if couldn't find whole thing
                     course_assignments_array = dict((a['assignment_name'], course_assignments.index(a)) for a in course_assignments)
                     if course.last_assignment and course.last_assignment['assignment_name'] in course_assignments_array:
                         index_of_last = course_assignments_array[course.last_assignment['assignment_name']]
                         index_with_prev_last = index_of_last + 1
                         new_assignments = course_assignments[:index_with_prev_last]
+                    else:
+                        # specific assignment grade name not found, take all occurrences
+                        new_assignments = course_assignments
                 
                 course.last_assignment = course_assignments[0]
                 course.new_assignments = new_assignments
