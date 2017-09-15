@@ -186,7 +186,7 @@ class User:
         user.student_id = row['student_id']
         user.premium = row.get('premium', 0)
         user.phone_email = row.get('phone_email', '')
-        user.phone_enabled = row.get('phone_enabled', 0)
+        user.phone_enabled = row.get('phone_enabled', 1)
         return user
     
     @classmethod
@@ -196,7 +196,7 @@ class User:
         return rows > 0
     
     def create_account(self):
-        sqlc.execute("INSERT INTO accounts VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}')".format(self.username, self.name, self.email, self.password, 1, self.student_id, 0, self.phone_email, 0))
+        sqlc.execute("INSERT INTO accounts VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}')".format(self.username, self.name, self.email, self.password, 1, self.student_id, 0, self.phone_email, 1))
         conn.commit()
         self.create_table_if_not_exists()
     
