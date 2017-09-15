@@ -186,7 +186,7 @@ class User:
         user.student_id = row['student_id']
         user.premium = row.get('premium', 0)
         user.phone_email = row.get('phone_email', '')
-        user.phone_enabled = row.get('phone_enabled', 1)
+        user.phone_enabled = row.get('phone_enabled', 1) or 1
         return user
     
     @classmethod
@@ -233,7 +233,7 @@ class User:
         return "{} ({} -- {}) [{} / {}] [{} {}]".format(self.name, self.username, self.student_id, self.email, self.phone_email, self.enabled, self.premium)
     
     def json(self):
-        return {'enabled': self.enabled == 1, 'student_id': self.student_id, 'username': self.username, 'name': self.name, 'premium': self.premium == 1, 'email': self.email, 'phone_email': self.phone_email, 'phone_enabled': self.phone_enabled == 1}
+        return {'enabled': self.enabled, 'student_id': self.student_id, 'username': self.username, 'name': self.name, 'premium': self.premium, 'email': self.email, 'phone_email': self.phone_email, 'phone_enabled': self.phone_enabled}
 
 def setup():
     """general setup commands"""
