@@ -230,10 +230,10 @@ class User:
             course.save()
 
     def __str__(self):
-        return "{} ({} -- {}) [{} / {}] [{} {}]".format(self.name, self.username, self.student_id, self.email, self.phone_email, self.enabled, self.premium)
+        return "{} ({} -- {}) [{} / {} ({})] [{}]".format(self.name, self.username, self.student_id, self.email, self.phone_email, self.phone_enabled, self.enabled)
     
     def json(self):
-        return {'enabled': self.enabled, 'student_id': self.student_id, 'username': self.username, 'name': self.name, 'premium': self.premium, 'email': self.email, 'phone_email': self.phone_email, 'phone_enabled': self.phone_enabled}
+        return {'enabled': self.enabled, 'student_id': self.student_id, 'username': self.username, 'name': self.name, 'email': self.email, 'phone_email': self.phone_email, 'phone_enabled': self.phone_enabled}
 
 def setup():
     """general setup commands"""
@@ -357,7 +357,8 @@ def get_all_grades():
             # get assignments
             # $('div#recentAssignments table.portalTable tbody tr')
             assignments = {}
-            if curr_user.premium == 1:
+            # if curr_user.premium == 1:
+            if True:
                 assignments_tables = soup.findAll(name='table', attrs={'class': 'portalTable'})
                 if len(assignments_tables) < 2:
                     return False
@@ -778,7 +779,8 @@ def do_task(user, inDatabase):
             # Print before saving to show changes
             # array: [ grade_changed, string ]
             # if 'not user.phone_email', send full text, if user.phone_email exists, use short
-            email_to_use = (user.phone_email or user.email) if (user.premium == 1 and user.phone_enabled == 1) else user.email
+            # email_to_use = (user.phone_email or user.email) if (user.premium == 1 and user.phone_enabled == 1) else user.email
+            email_to_use = user.phone_email if (user.phone_enabled and user.phone_email) else user.email
             final_grades = get_grade_string(grades, inDatabase, email_to_use != user.phone_email or options.go)
             if final_grades:
                 
