@@ -163,7 +163,7 @@ class User:
     
     @classmethod
     def setup_accounts_table(self):
-        sqlc.execute("CREATE TABLE IF NOT EXISTS accounts (username TEXT, name TEXT, email TEXT, password TEXT, enabled INTEGER, student_id TEXT UNIQUE, premium INTEGER)")
+        sqlc.execute("CREATE TABLE IF NOT EXISTS accounts (username TEXT, name TEXT, email TEXT, password TEXT, enabled INTEGER, student_id TEXT UNIQUE, premium INTEGER, phone_email TEXT, phone_enabled INTEGER)")
         conn.commit()
 
     @classmethod
@@ -186,6 +186,7 @@ class User:
         user.student_id = row['student_id']
         user.premium = row.get('premium', 0)
         user.phone_email = row.get('phone_email', '')
+        user.phone_enabled = row.get('phone_enabled', 0)
         return user
     
     @classmethod
@@ -195,7 +196,7 @@ class User:
         return rows > 0
     
     def create_account(self):
-        sqlc.execute("INSERT INTO accounts VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}')".format(self.username, self.name, self.email, self.password, 1, self.student_id, 0, self.phone_email))
+        sqlc.execute("INSERT INTO accounts VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}')".format(self.username, self.name, self.email, self.password, 1, self.student_id, 0, self.phone_email, 0))
         conn.commit()
         self.create_table_if_not_exists()
     
@@ -777,7 +778,7 @@ def do_task(user, inDatabase):
             # Print before saving to show changes
             # array: [ grade_changed, string ]
             # if 'not user.phone_email', send full text, if user.phone_email exists, use short
-            email_to_use = (user.phone_email or user.email) if user.premium == 1 else user.email
+            email_to_use = (user.phone_email or user.email) if (user.premium == 1 and user.phone_enabled == 1) else user.email
             final_grades = get_grade_string(grades, inDatabase, email_to_use != user.phone_email or options.go)
             if final_grades:
                 
