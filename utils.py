@@ -10,6 +10,7 @@ def send_email(smtp_address, smtp_username, smtp_password, address, subject, mes
     send_info = "From: %s\nTo: %s\nSubject: %s\nX-Mailer: ICGrades\n\n" % (smtp_username, address, subject)
 
     server = smtplib.SMTP(smtp_address)
+    server.ehlo()
     server.starttls()
     server.login(smtp_username, smtp_password)
     server.sendmail(smtp_address, address, send_info + message)
