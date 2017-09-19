@@ -505,18 +505,17 @@ def login(user, shouldDecrypt):
 def logout():
     """Logs out of Infinite Campus
     """
+    global curr_user
+    curr_user = None
     try:
         br.open(get_base_url() + 'logoff.jsp')
-
-        global curr_user
-        curr_user = None
     except KeyboardInterrupt:
         sys.exit()
     except Exception:
         print("Logging out failed")
         full = traceback.format_exc()
         logging.warning("Exception: %s" % full)
-        send_admin_email("GN | logout try failed", "{}\n\n{}".format(curr_user, full))
+        # send_admin_email("GN | logout try failed", "{}\n\n{}".format(curr_user, full))
 
 # returns array where index 0 element is grade_changed (boolean) and index 1 element is grade string
 def get_grade_string(grades, inDatabase, showAll):
