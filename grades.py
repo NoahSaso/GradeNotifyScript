@@ -375,7 +375,7 @@ def get_all_grades():
                     if course_name not in assignments:
                         assignments[course_name] = []
 
-                    assignment_name = cont[7].getText().strip()
+                    assignment_name = cont[7].getText().strip().replace('&amp;','&')
                     score = NON_DECIMAL.sub('', cont[9].getText().strip())
                     total = NON_DECIMAL.sub('', cont[11].getText().strip())
                     percent = NON_DECIMAL.sub('', cont[13].getText().strip())
