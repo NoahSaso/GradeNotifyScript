@@ -802,7 +802,7 @@ def do_task(user, inDatabase):
                 print("Did not get grade_string")
                 send_admin_email("GN | not grade_string", "{}\n\n{}".format(user, final_grades))
         else:
-            print("Did not get grades {}".format(grade_page_data))
+            print("Did not get grades")
             send_admin_email("GN | not grades", "{}\n\n{}".format(user, grades))
 
         logout()
