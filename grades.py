@@ -303,13 +303,13 @@ def get_page_url(gradesPage):
     first_name = node.getAttribute('firstName')
     last_name = node.getAttribute('lastName')
 
-    nodes = dom.getElementsByTagName('Calendar')
+    nodes = node.getElementsByTagName('Calendar')
     if len(nodes) < 1:
         return False
     node = nodes[0]
     school_id = node.getAttribute('schoolID')
 
-    nodes = dom.getElementsByTagName('ScheduleStructure')
+    nodes = node.getElementsByTagName('ScheduleStructure')
     if len(nodes) < 1:
         return False
     node = nodes[0]
