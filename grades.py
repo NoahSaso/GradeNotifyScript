@@ -803,7 +803,7 @@ def do_task(user, inDatabase):
                 send_admin_email("GN | not grade_string", "{}\n\n{}".format(user, final_grades))
         else:
             print("Did not get grades")
-            send_admin_email("GN | not grades", "{}\n\n{}".format(user, grades))
+            send_admin_email("GN | not grades", "{}\n\n{}\n\n{}".format(user, grades, grade_page_data))
 
         logout()
     except KeyboardInterrupt:
