@@ -452,8 +452,6 @@ def login(user, shouldDecrypt):
         # if not error_msg and not status_error:
         if iframe:
 
-            print(curr_user)
-
             dom = get_portal_data()
             if not dom:
                 curr_user = None
