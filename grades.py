@@ -106,6 +106,8 @@ parser.add_option('-i', '--infinitecampus', action='store', dest='infinitecampus
 parser.add_option('-d', '--database', action='store', dest='database', metavar='DICTIONARY', help='Modify database')
 parser.add_option('-j', '--json', action='store_true', dest='json', help='Output json')
 
+parser.add_option('-b', action='store_true', dest='b', help='Do a change')
+
 (options, args) = parser.parse_args()
 
 def encrypted(string):
@@ -125,7 +127,7 @@ class Course:
 
     @classmethod
     def course_from_name(self, user, name):
-        sqlc.execute("SELECT * FROM 'user_{}' WHERE name = '{}'".format(user.student_id, name))
+        sqlc.execute("SELECT * FROM '{}' WHERE name = '{}'".format(user.get_table_name(), name))
         course_row = sqlc.fetchone()
         if course_row:
             try:
@@ -137,14 +139,14 @@ class Course:
             return False
     
     def save(self):
-        sqlc.execute("INSERT OR REPLACE INTO 'user_{}' VALUES ('{}', '{}', '{}', '{}')".format(self.user.student_id, self.name, self.grade, self.letter, json.dumps(self.last_assignment)))
+        sqlc.execute("INSERT OR REPLACE INTO '{}' VALUES ('{}', '{}', '{}', '{}')".format(self.user.get_table_name(), self.name, self.grade, self.letter, json.dumps(self.last_assignment)))
         conn.commit()
 
     def diff_grade(self):
         """returns the difference between the current class grade
         and the last one
         """
-        sqlc.execute("SELECT * FROM 'user_{}' WHERE name = '{}'".format(self.user.student_id, self.name))
+        sqlc.execute("SELECT * FROM '{}' WHERE name = '{}'".format(self.user.get_table_name(), self.name))
         course_row = sqlc.fetchone()
         # Set prev grade to own grade so no difference if grade didn't exist
         prev_grade = (course_row['grade'] if course_row and 'grade' in course_row else self.grade)
@@ -163,7 +165,8 @@ class User:
     
     @classmethod
     def setup_accounts_table(self):
-        sqlc.execute("CREATE TABLE IF NOT EXISTS accounts (username TEXT, name TEXT, email TEXT, password TEXT, enabled INTEGER, student_id TEXT UNIQUE, premium INTEGER, phone_email TEXT, phone_enabled INTEGER)")
+        # sqlc.execute("CREATE TABLE IF NOT EXISTS accounts (username TEXT, name TEXT, email TEXT, password TEXT, enabled INTEGER, student_id TEXT UNIQUE, premium INTEGER, phone_email TEXT, phone_enabled INTEGER, recipients TEXT)")
+        sqlc.execute("CREATE TABLE IF NOT EXISTS accounts (username TEXT, name TEXT, password TEXT, enabled INTEGER, student_id TEXT UNIQUE, recipients TEXT)")
         conn.commit()
 
     @classmethod
@@ -180,13 +183,13 @@ class User:
         user = self()
         user.username = row['username']
         user.name = row.get('name', 'Unknown Name')
-        user.email = row.get('email', '')
+        user.email = row.get('email')
         user.password = row['password']
-        user.enabled = row.get('enabled', 1)
-        user.student_id = row['student_id']
-        user.premium = row.get('premium', 0)
-        user.phone_email = row.get('phone_email', '')
         user.phone_enabled = row.get('phone_enabled', 1) or 1
+        user.phone_email = row.get('phone_email', '') or ''
+        user.enabled = row.get('enabled', 1) or 1
+        user.student_id = row['student_id']
+        user.recipients = json.loads(row.get('recipients', '[]') or '[]')
         return user
     
     @classmethod
@@ -195,8 +198,11 @@ class User:
         rows = sqlc.fetchone()['COUNT(*)']
         return rows > 0
     
+    def get_table_name(self):
+        return "user_{}".format(self.student_id)
+    
     def create_account(self):
-        sqlc.execute("INSERT INTO accounts VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}')".format(self.username, self.name, self.email, self.password, 1, self.student_id, 0, self.phone_email, 1))
+        sqlc.execute("INSERT INTO accounts VALUES ('{}', '{}', '{}', '{}', '{}', '{}')".format(self.username, self.name, self.password, 1, self.student_id, json.dumps(self.recipients)))
         conn.commit()
         self.create_table_if_not_exists()
     
@@ -217,7 +223,7 @@ class User:
             return False
     
     def create_table_if_not_exists(self):
-        sqlc.execute("CREATE TABLE IF NOT EXISTS 'user_{}' (name TEXT UNIQUE, grade FLOAT, letter TEXT, last_assignment TEXT)".format(self.student_id))
+        sqlc.execute("CREATE TABLE IF NOT EXISTS '{}' (name TEXT UNIQUE, grade FLOAT, letter TEXT, last_assignment TEXT)".format(self.get_table_name()))
         conn.commit()
     
     def update(self, key, value):
@@ -230,10 +236,10 @@ class User:
             course.save()
 
     def __str__(self):
-        return "{} ({} -- {}) [{} / {} ({})] [{}]".format(self.name, self.username, self.student_id, self.email, self.phone_email, self.phone_enabled, self.enabled)
+        return "{} ({} -- {}) [{}]".format(self.name, self.username, self.student_id, self.enabled)
     
     def json(self):
-        return {'enabled': self.enabled, 'student_id': self.student_id, 'username': self.username, 'name': self.name, 'email': self.email, 'phone_email': self.phone_email, 'phone_enabled': self.phone_enabled}
+        return {'enabled': self.enabled, 'student_id': self.student_id, 'username': self.username, 'name': self.name, 'recipients': self.recipients}
 
 def setup():
     """general setup commands"""
@@ -357,7 +363,6 @@ def get_all_grades():
             # get assignments
             # $('div#recentAssignments table.portalTable tbody tr')
             assignments = {}
-            # if curr_user.premium == 1:
             if True:
                 assignments_tables = soup.findAll(name='table', attrs={'class': 'portalTable'})
                 if len(assignments_tables) < 2:
@@ -413,7 +418,6 @@ def get_all_grades():
                 course.new_assignments = new_assignments
 
             else:
-                # dev_print("No assignments for {} (premium: {})".format(name, curr_user.premium))
                 course.new_assignments = []
 
             # add course
@@ -556,28 +560,6 @@ def send_grade_email(email, isPhone, message):
     print("Sending grade email to {}".format(email))
     utils.send_email(cfg['smtp_address'], cfg['smtp_username'], cfg['smtp_password'], email, '' if isPhone else 'Grade Alert', message)
 
-def send_welcome_email(user):
-
-    first_name = user.name.split(' ')
-    if len(first_name) > 0:
-        first_name = first_name[0]
-
-    message = "\n".join([
-        "Hey {},".format(first_name),
-        "",
-        "You have signed up for Grade Notify. About every 30 minutes, the system will scan your grades and email you an update if anything is different from the previous scan. Right now, I only send the cumulative grades of each class (not individual assignments). More detailed reports will come soon.",
-        "",
-        "You can reply to this email if you have any questions or issues.",
-        "",
-        "Thanks!",
-        "Noah -- Grade Notify"
-    ])
-
-    email = 'noahsaso@gmail.com' if DEV_MODE else user.email
-
-    print("Sending welcome email to {} {{{}}}".format(user, email))
-    utils.send_email(cfg['smtp_address'], cfg['smtp_username'], cfg['smtp_password'], email, 'Welcome', message)
-
 def send_admin_email(subject, message):
     if not DEV_MODE:
         utils.send_email(cfg['smtp_address'], cfg['smtp_username'], cfg['smtp_password'], 'noahsaso@gmail.com', subject, message)
@@ -586,6 +568,35 @@ def main():
     # Run every 10 minutes with a cron job (*/10 * * * * /path/to/scraper_auto.py)
     try:
         setup()
+
+        # Convert all emails/phones to recipients
+        if options.b:
+            sqlc.execute("ALTER TABLE accounts ADD recipients TEXT")
+            conn.commit()
+            users = []
+            for user in User.get_all_users(''):
+                recipients = user.recipients
+                if user.email:
+                    recipients.append({
+                        'address': user.email,
+                        'type': 'email',
+                        'enabled': (1 if user.phone_enabled != 1 or not user.phone_email else 0)
+                    })
+                if user.phone_email:
+                    recipients.append({
+                        'address': user.phone_email,
+                        'type': 'phone',
+                        'enabled': (1 if user.phone_enabled == 1 else 0)
+                    })
+                user.update('recipients', json.dumps(recipients))
+                user.recipients = recipients
+                users.append(user)
+            sqlc.execute("DROP TABLE accounts");
+            conn.commit()
+            User.setup_accounts_table()
+            for user in users:
+                user.create_account()
+            return
 
         if options.setup:
             User.setup_accounts_table()
@@ -676,7 +687,6 @@ def main():
                                 user.password = encrypted(user.password)
                                 user.create_account()
                                 send_admin_email("GN | User Created", "Created {}".format(user))
-                                send_welcome_email(user)
                                 print("Added {}".format(user))
                         else:
                             print("Please provide name, username, student_id, password, and email")
@@ -779,10 +789,7 @@ def do_task(user, inDatabase):
         if grades:
             # Print before saving to show changes
             # array: [ grade_changed, string ]
-            # if 'not user.phone_email', send full text, if user.phone_email exists, use short
-            # email_to_use = (user.phone_email or user.email) if (user.premium == 1 and user.phone_enabled == 1) else user.email
-            email_to_use = user.phone_email if (user.phone_enabled and user.phone_email) else user.email
-            final_grades = get_grade_string(grades, inDatabase, email_to_use != user.phone_email or options.go)
+            final_grades = get_grade_string(grades, inDatabase, options.go)
             if final_grades:
                 
                 print("Got them")
@@ -795,7 +802,12 @@ def do_task(user, inDatabase):
                 else:
                     should_send = (user.email and not inDatabase) or (inDatabase and (options.loud or (final_grades[0] and not options.quiet)))
                 if should_send:
-                    send_grade_email(email_to_use, email_to_use == user.phone_email, final_grades[1])
+                    if inDatabase:
+                        for recipient in user.recipients:
+                            if recipient['enabled'] == 1:
+                                send_grade_email(recipient['address'], recipient['type'] == 'phone', final_grades[1])
+                    else:
+                        send_grade_email(user.email, False, final_grades[1])
 
                 dev_print(final_grades[1])
             else:
