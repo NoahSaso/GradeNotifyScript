@@ -436,6 +436,8 @@ def login(user, shouldDecrypt):
 
         soup = BeautifulSoup(r)
 
+        print(soup)
+
         # shows if sign in failed
         # error_msg = soup.find('p', {'class': 'errorMessage'})
         # status_msg = soup.find('div', {'class': 'statusmsg'})
@@ -445,6 +447,8 @@ def login(user, shouldDecrypt):
         #     status_error = False
 
         iframe = soup.find('iframe', id='frameDetail', attrs={'name': 'frameDetail'})
+
+        print(iframe)
 
         global curr_user
         global schedule_page_data
