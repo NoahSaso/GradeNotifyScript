@@ -165,7 +165,6 @@ class User:
     
     @classmethod
     def setup_accounts_table(self):
-        # sqlc.execute("CREATE TABLE IF NOT EXISTS accounts (username TEXT, name TEXT, email TEXT, password TEXT, enabled INTEGER, student_id TEXT UNIQUE, premium INTEGER, phone_email TEXT, phone_enabled INTEGER, recipients TEXT)")
         sqlc.execute("CREATE TABLE IF NOT EXISTS accounts (username TEXT, name TEXT, password TEXT, enabled INTEGER, student_id TEXT UNIQUE, recipients TEXT)")
         conn.commit()
 
@@ -185,8 +184,6 @@ class User:
         user.name = row.get('name', 'Unknown Name')
         user.email = row.get('email')
         user.password = row['password']
-        user.phone_enabled = row.get('phone_enabled', 1) or 1
-        user.phone_email = row.get('phone_email', '') or ''
         user.enabled = row.get('enabled', 1) or 1
         user.student_id = row['student_id']
         user.recipients = json.loads(row.get('recipients', '[]') or '[]')
