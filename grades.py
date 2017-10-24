@@ -802,7 +802,10 @@ def do_task(user, inDatabase):
                     else:
                         send_grade_email(user.email, False, final_grades[1])
 
-                dev_print(final_grades[1])
+		if final_grades[1]:
+                	dev_print(final_grades[1])
+		else:
+			print("Nothing changed")
             else:
                 print("Did not get grade_string")
                 send_admin_email("GN | not grade_string", "{}\n\n{}".format(user, final_grades))
