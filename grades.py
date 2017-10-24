@@ -564,6 +564,7 @@ def send_admin_email(subject, message):
 def main():
     # Run every 10 minutes with a cron job (*/10 * * * * /path/to/scraper_auto.py)
     try:
+        
         # move one encryption to another for specified users
         if options.transfer:
 
