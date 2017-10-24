@@ -6,3 +6,4 @@ database.db
 *.db-journal
 *.log
 run.sh
+.sys
