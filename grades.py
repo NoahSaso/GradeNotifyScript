@@ -184,7 +184,7 @@ class User:
         user.name = row.get('name', 'Unknown Name')
         user.email = row.get('email')
         user.password = row['password']
-        user.enabled = row.get('enabled', 1) or 1
+        user.enabled = row.get('enabled', 1)
         user.student_id = row['student_id']
         user.recipients = json.loads(row.get('recipients', '[]') or '[]')
         return user
