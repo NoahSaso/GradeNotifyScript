@@ -1,6 +1,6 @@
 config.yml
 history.db
-database.db
+*.db
 *.pyc
 *.db
 *.db-journal

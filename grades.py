@@ -106,15 +106,15 @@ parser.add_option('-i', '--infinitecampus', action='store', dest='infinitecampus
 parser.add_option('-d', '--database', action='store', dest='database', metavar='DICTIONARY', help='Modify database')
 parser.add_option('-j', '--json', action='store_true', dest='json', help='Output json')
 
-parser.add_option('-b', action='store_true', dest='b', help='Do a change')
+parser.add_option('-t', '--transfer', action='store', dest='transfer', metavar='DICTIONARY', help='Transfer encryptions and users')
 
 (options, args) = parser.parse_args()
 
-def encrypted(string):
-    return hexlify(AESCipher(options.z).encrypt(string))
+def encrypted(string, salt=options.z):
+    return hexlify(AESCipher(salt).encrypt(string))
 
-def decrypted(string):
-    return AESCipher(options.z).decrypt(unhexlify(string))
+def decrypted(string, salt=options.z):
+    return AESCipher(salt).decrypt(unhexlify(string))
 
 class Course:
     """an object for an individual class, contains a grade and class name"""
@@ -156,10 +156,10 @@ class Course:
 
 class User:
     @classmethod
-    def get_all_users(self, where_clause):
-        sqlc.execute("SELECT * FROM accounts{}".format(" {}".format(where_clause) if where_clause else ''))
+    def get_all_users(self, where_clause, sql=sqlc):
+        sql.execute("SELECT * FROM accounts{}".format(" {}".format(where_clause) if where_clause else ''))
         users = []
-        for user_row in sqlc.fetchall():
+        for user_row in sql.fetchall():
             users.append(User.from_dict(user_row))
         return users
     
@@ -198,10 +198,10 @@ class User:
     def get_table_name(self):
         return "user_{}".format(self.student_id)
     
-    def create_account(self):
-        sqlc.execute("INSERT INTO accounts VALUES ('{}', '{}', '{}', '{}', '{}', '{}')".format(self.username, self.name, self.password, 1, self.student_id, json.dumps(self.recipients)))
-        conn.commit()
-        self.create_table_if_not_exists()
+    def create_account(self, sql=sqlc, con=conn):
+        sql.execute("INSERT INTO accounts VALUES ('{}', '{}', '{}', '{}', '{}', '{}')".format(self.username, self.name, self.password, 1, self.student_id, json.dumps(self.recipients)))
+        con.commit()
+        self.create_table_if_not_exists(sql=sql, con=con)
     
     @classmethod
     def remove_account(self, student_id):
@@ -219,9 +219,9 @@ class User:
         else:
             return False
     
-    def create_table_if_not_exists(self):
-        sqlc.execute("CREATE TABLE IF NOT EXISTS '{}' (name TEXT UNIQUE, grade FLOAT, letter TEXT, last_assignment TEXT)".format(self.get_table_name()))
-        conn.commit()
+    def create_table_if_not_exists(self, sql=sqlc, con=conn):
+        sql.execute("CREATE TABLE IF NOT EXISTS '{}' (name TEXT UNIQUE, grade FLOAT, letter TEXT, last_assignment TEXT)".format(self.get_table_name()))
+        con.commit()
     
     def update(self, key, value):
         sqlc.execute("UPDATE accounts SET {} = '{}' WHERE student_id = '{}'".format(key, value, self.student_id))
@@ -564,36 +564,31 @@ def send_admin_email(subject, message):
 def main():
     # Run every 10 minutes with a cron job (*/10 * * * * /path/to/scraper_auto.py)
     try:
-        setup()
+        # move one encryption to another for specified users
+        if options.transfer:
 
-        # Convert all emails/phones to recipients
-        if options.b:
-            sqlc.execute("ALTER TABLE accounts ADD recipients TEXT")
-            conn.commit()
-            users = []
-            for user in User.get_all_users(''):
-                recipients = user.recipients
-                if user.email:
-                    recipients.append({
-                        'address': user.email,
-                        'type': 'email',
-                        'enabled': (1 if user.phone_enabled != 1 or not user.phone_email else 0)
-                    })
-                if user.phone_email:
-                    recipients.append({
-                        'address': user.phone_email,
-                        'type': 'phone',
-                        'enabled': (1 if user.phone_enabled == 1 else 0)
-                    })
-                user.update('recipients', json.dumps(recipients))
-                user.recipients = recipients
-                users.append(user)
-            sqlc.execute("DROP TABLE accounts");
-            conn.commit()
-            User.setup_accounts_table()
-            for user in users:
-                user.create_account()
+            data = json.loads(options.transfer)
+
+            conn_from = sqlite3.connect(DIRNAME+"/"+data['db_from'])
+            conn_from.row_factory = dict_factory
+            sqlc_from = conn_from.cursor()
+
+            conn_to = sqlite3.connect(DIRNAME+"/"+data['db_to'])
+            conn_to.row_factory = dict_factory
+            sqlc_to = conn_to.cursor()
+
+            for user in User.get_all_users("WHERE student_id IN ({})".format(",".join(data['student_ids'])), sql=sqlc_from):
+                user.password = encrypted(decrypted(user.password, salt=data['salt_from']), salt=data['salt_to'])
+                user.create_account(sql=sqlc_to, con=conn_to)
+            
+            sqlc_from.close()
+            conn_from.close()
+            sqlc_to.close()
+            conn_from.close()
+
             return
+
+        setup()
 
         if options.setup:
             User.setup_accounts_table()
