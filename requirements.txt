@@ -1,0 +1,4 @@
+mechanize==0.2.5
+BeautifulSoup==3.2.1
+pycrypto==2.6.1
+PyYAML==3.12
