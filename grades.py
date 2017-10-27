@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# import time
+import time
 import yaml
 import json
 import cookielib
@@ -29,9 +29,6 @@ import base64
 
 from Crypto import Random
 from Crypto.Cipher import AES
-
-start_time_total = 0
-count_total = 0
 
 BS = 16
 pad = lambda s: s + (BS - len(s) % BS) * chr(BS - len(s) % BS)
@@ -740,17 +737,20 @@ def main():
                     print("Please include the encryption salt")
                 else:
                     # Get users
-                    global start_time_total
-                    global count_total
                     start_time_total = time.time()
                     # start at 1 because in for loop we exclude last user
                     count_total = 1
-                    all_enabled_users = User.get_all_users('WHERE enabled = 1')
-                    for user in all_enabled_users[:-1]:
+                    processes = []
+                    for user in User.get_all_users('WHERE enabled = 1'):
                         count_total += 1
-                        Process(target=do_task, args=(user, True)).start()
+                        p = Process(target=do_task, args=(user, True))
+                        p.start()
+                        processes.append(p)
                         # do_task(user, True)
-                    Process(target=do_task, args=(user, True), kwargs={'last':True}).start()
+                    for p in processes:
+                        p.join()
+                    final_time = time.time()
+                    print("----- Total Time: %s seconds, Average Time per User: %s seconds -----" % ((final_time - start_time_total), (final_time - start_time_total)/count_total))
                     # print("----- Average Time per User: %s seconds -----" % ((time.time() - start_time_total)/count_total))
 
             # Else if specified check user
@@ -767,7 +767,7 @@ def main():
         logging.warning("Exception: %s" % full)
         send_admin_email("GN | Main try failed", "{}".format(full))
 
-def do_task(user, inDatabase, last=False):
+def do_task(user, inDatabase):
     try:
         # start_time = time.time()
         print("[{}] Logging in...".format(user))
@@ -827,9 +827,6 @@ def do_task(user, inDatabase, last=False):
         full = traceback.format_exc()
         logging.warning("Exception: %s" % full)
         send_admin_email("GN | do_task try failed", "{}\n\n{}".format(user, full))
-    finally:
-        if last:
-            print("----- Total Time: %s seconds, Average Time per User: %s seconds -----" % ((time.time() - start_time_total), (time.time() - start_time_total)/count_total))
 
 if __name__ == '__main__':
     main()
