@@ -521,8 +521,8 @@ def get_grade_string(grades, inDatabase, showAll, curr_user):
                 for a in c.new_assignments:
                     final_grades += "{}: ({}/{}) [{}%]\n".format(a['assignment_name'], a['score'], a['total'], a['percent'])
                 final_grades += "\n"
-    if grade_changed:
-        print("A grade changed")
+    # if grade_changed:
+        # print("A grade changed")
     else:
         # if no grades changed, don't put spaces -- will only matter if manual testing
         final_grades = final_grades.replace("\n\n", "\n")
@@ -530,7 +530,7 @@ def get_grade_string(grades, inDatabase, showAll, curr_user):
     return [grade_changed, final_grades.strip()]
 
 def send_grade_email(email, isPhone, message):
-    print("Sending grade email to {}".format(email))
+    # print("Sending grade email to {}".format(email))
     utils.send_email(cfg['smtp_address'], cfg['smtp_username'], cfg['smtp_password'], email, '' if isPhone else 'Grade Alert', message)
 
 def send_admin_email(subject, message):
@@ -773,7 +773,7 @@ def do_task(user, inDatabase):
         print("[{}] Logging in...".format(user))
         global dont_send_failed_login_email
         if not login(user, inDatabase):
-            print("Log in failed for {}".format(user))
+            print("[{}] Log in failed".format(user))
             if dont_send_failed_login_email:
                 # send_admin_email("GN | Login failed", "{}".format(user))
                 # print('didnt send admin email but login failed')
@@ -823,7 +823,7 @@ def do_task(user, inDatabase):
     except KeyboardInterrupt:
         sys.exit()
     except Exception:
-        print("Doing task failed, probably login information failed?")
+        print("[{}] Finished, doing task failed, probably login information failed?".format(user))
         full = traceback.format_exc()
         logging.warning("Exception: %s" % full)
         send_admin_email("GN | do_task try failed", "{}\n\n{}".format(user, full))
