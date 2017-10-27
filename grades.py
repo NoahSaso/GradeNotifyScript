@@ -72,9 +72,6 @@ conn = sqlite3.connect(DIRNAME+"/database.db")
 conn.row_factory = dict_factory
 sqlc = conn.cursor()
 
-curr_user = None
-schedule_page_data = None
-grade_page_data = None
 dont_send_failed_login_email = False
 
 NON_DECIMAL = re.compile(r'[^\d.]+')
@@ -135,7 +132,7 @@ class Course:
                 last_assignment = json.loads(course_row.get('last_assignment', "{{}}"))
             except:
                 last_assignment = {}
-            return Course(course_row['name'], float(course_row['grade']), course_row['letter'], last_assignment, curr_user)
+            return Course(course_row['name'], float(course_row['grade']), course_row['letter'], last_assignment, user)
         else:
             return False
     
@@ -267,7 +264,7 @@ def get_base_url():
     """returns the site's base url, taken from the login page url"""
     return cfg['login_url'].split("/campus")[0] + '/campus/'
 
-def get_portal_data():
+def get_portal_data(curr_user):
     url = 'portal/portalOutlineWrapper.xsl?x=portal.PortalOutline&contentType=text/xml&lang=en'
     school_data = br.open(get_base_url() + url)
     try:
@@ -281,15 +278,8 @@ def get_portal_data():
         send_admin_email("GN | minidom parse failed", "{}\n\n{}".format(curr_user, full))
         return False
 
-def get_page_url(gradesPage):
+def get_page_url(gradesPage, dom, curr_user):
     """returns the url of the schedule page"""
-    if not curr_user:
-        return False
-
-    dom = get_portal_data()
-    if not dom:
-        return False
-
     nodes = dom.getElementsByTagName('Student')
     node = False
     for student in nodes:
@@ -340,10 +330,8 @@ def get_page_url(gradesPage):
         mode,
         x))
 
-def get_all_grades():
-    if not curr_user:
-        return False
-    soup = grade_page_data
+def get_all_grades(curr_user):
+    soup = curr_user.grade_page_data
 
     courses = []
 
@@ -447,16 +435,11 @@ def login(user, shouldDecrypt):
 
         iframe = soup.find('iframe', id='frameDetail', attrs={'name': 'frameDetail'})
 
-        global curr_user
-        global schedule_page_data
-        global grade_page_data
         # if not error_msg and not status_error:
         if iframe:
 
-            dom = get_portal_data()
-            if not dom:
-                curr_user = None
-            else:
+            dom = get_portal_data(user)
+            if dom:
                 students = dom.getElementsByTagName('Student')
                 exists = False
                 for student in students:
@@ -467,27 +450,23 @@ def login(user, shouldDecrypt):
                         exists = True
                         break
                 if exists:
-                    curr_user = user
-
-                    schedule_page_data = None
-                    for idx in range(3):
-                        schedule_page_data = br.open(get_page_url(False))
-                        if schedule_page_data:
-                            schedule_page_data = BeautifulSoup(schedule_page_data)
-                            if schedule_page_data:
-                                break
+                    # schedule_page_data = None
+                    # for idx in range(3):
+                    #     schedule_page_data = br.open(get_page_url(False))
+                    #     if schedule_page_data:
+                    #         schedule_page_data = BeautifulSoup(schedule_page_data)
+                    #         if schedule_page_data:
+                    #             break
                     grade_page_data = None
                     for idx in range(3):
-                        grade_page_data = br.open(get_page_url(True))
+                        grade_page_data = br.open(get_page_url(True, dom, user))
                         if grade_page_data:
                             grade_page_data = BeautifulSoup(grade_page_data)
                             if grade_page_data:
+                                user.grade_page_data = grade_page_data
                                 break
 
-                    return True
-                    
-        else:
-            curr_user = None
+                    return not not grade_page_data
 
         dont_send_failed_login_email = False
         
@@ -507,8 +486,6 @@ def login(user, shouldDecrypt):
 def logout():
     """Logs out of Infinite Campus
     """
-    global curr_user
-    curr_user = None
     try:
         br.open(get_base_url() + 'logoff.jsp')
     except KeyboardInterrupt:
@@ -520,10 +497,8 @@ def logout():
         # send_admin_email("GN | logout try failed", "{}\n\n{}".format(curr_user, full))
 
 # returns array where index 0 element is grade_changed (boolean) and index 1 element is grade string
-def get_grade_string(grades, inDatabase, showAll):
+def get_grade_string(grades, inDatabase, showAll, curr_user):
     """Extracts the grade_string"""
-    if not curr_user:
-        return False
     final_grades = ""
     grade_changed = False
     for c in grades:
@@ -799,11 +774,11 @@ def do_task(user, inDatabase):
         
         print("Grabbing grades of schedule from semester...")
         user.create_table_if_not_exists()
-        grades = get_all_grades()
+        grades = get_all_grades(user)
         if grades:
             # Print before saving to show changes
             # array: [ grade_changed, string ]
-            final_grades = get_grade_string(grades, inDatabase, options.go)
+            final_grades = get_grade_string(grades, inDatabase, options.go, user)
             if final_grades:
                 
                 print("Got them")
