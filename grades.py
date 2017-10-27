@@ -747,8 +747,12 @@ def main():
                     print("Please include the encryption salt")
                 else:
                     # Get users
+                    start_time_total = time.time()
+                    count_total = 0
                     for user in User.get_all_users('WHERE enabled = 1'):
                         do_task(user, True)
+                        count_total += 1
+                    print("----- Average Time per User: %s seconds -----" % ((time.time() - start_time_total)/count_total))
 
             # Else if specified check user
             else:
