@@ -103,7 +103,7 @@ parser.add_option('-i', '--infinitecampus', action='store', dest='infinitecampus
 # Example argument: '{"table": "TABLE_HERE", "method": "add_column", "name": "NAME_HERE", "type": "TYPE_HERE"}'
 parser.add_option('-d', '--database', action='store', dest='database', metavar='DICTIONARY', help='Modify database')
 parser.add_option('-j', '--json', action='store_true', dest='json', help='Output json')
-
+parser.add_option('-w', '--whisper', action='store_true', dest='whisper', help='do not print student grades even if dev')
 parser.add_option('-t', '--transfer', action='store', dest='transfer', metavar='DICTIONARY', help='Transfer encryptions and users')
 
 (options, args) = parser.parse_args()
@@ -798,8 +798,8 @@ def do_task(user, inDatabase):
                     else:
                         send_grade_email(user.email, False, final_grades[1])
 
-		if final_grades[1]:
-                	dev_print(final_grades[1])
+		if final_grades[1] and not options.whisper:
+            dev_print(final_grades[1])
 		else:
 			print("Nothing changed")
             else:
