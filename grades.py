@@ -743,12 +743,13 @@ def main():
                     global start_time_total
                     global count_total
                     start_time_total = time.time()
-                    count_total = 0
+                    # start at 1 because in for loop we exclude last user
+                    count_total = 1
                     all_enabled_users = User.get_all_users('WHERE enabled = 1')
                     for user in all_enabled_users[:-1]:
+                        count_total += 1
                         Process(target=do_task, args=(user, True)).start()
                         # do_task(user, True)
-                        count_total += 1
                     Process(target=do_task, args=(user, True), kwargs={'last':True}).start()
                     # print("----- Average Time per User: %s seconds -----" % ((time.time() - start_time_total)/count_total))
 
