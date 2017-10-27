@@ -666,7 +666,8 @@ def main():
                                     print("Updated {} for {}".format(user_data['key'], user))
                             else:
                                 print("Please provide student_id, key, and value")
-                        print("Could not find user with student_id '{}'".format(student_id))
+                        else:
+                            print("Could not find user with student_id '{}'".format(student_id))
         # argument is dictionary with username and student_id
         elif options.add or options.infinitecampus:
             user_data = json.loads(options.add or options.infinitecampus)
