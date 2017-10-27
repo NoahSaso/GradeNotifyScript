@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import time
 import yaml
 import json
 import cookielib
@@ -765,6 +766,7 @@ def main():
 
 def do_task(user, inDatabase):
     try:
+        start_time = time.time()
         print("Logging in {}...".format(user))
         global dont_send_failed_login_email
         if not login(user, inDatabase):
@@ -814,6 +816,8 @@ def do_task(user, inDatabase):
             send_admin_email("GN | not grades", "{}\n\n{}\n\n{}".format(user, grades, grade_page_data))
 
         logout()
+
+        print("----- Took %s seconds -----" % (time.time() - start_time))
     except KeyboardInterrupt:
         sys.exit()
     except Exception:
