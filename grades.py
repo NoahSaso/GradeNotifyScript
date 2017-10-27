@@ -16,6 +16,7 @@ import time
 import getpass
 import utils
 import re
+from multiprocessing import Process
 
 from BeautifulSoup import BeautifulSoup
 from datetime import date, timedelta, datetime
@@ -738,11 +739,12 @@ def main():
                 else:
                     # Get users
                     start_time_total = time.time()
-                    count_total = 0
+                    # count_total = 0
                     for user in User.get_all_users('WHERE enabled = 1'):
-                        do_task(user, True)
-                        count_total += 1
-                    print("----- Average Time per User: %s seconds -----" % ((time.time() - start_time_total)/count_total))
+                        Process(target=do_task, args=(user, True)).start()
+                        # do_task(user, True)
+                        # count_total += 1
+                    # print("----- Average Time per User: %s seconds -----" % ((time.time() - start_time_total)/count_total))
 
             # Else if specified check user
             else:
@@ -807,7 +809,7 @@ def do_task(user, inDatabase):
                 send_admin_email("GN | not grade_string", "{}\n\n{}".format(user, final_grades))
         else:
             print("Did not get grades")
-            send_admin_email("GN | not grades", "{}\n\n{}\n\n{}".format(user, grades, grade_page_data))
+            send_admin_email("GN | not grades", "{}\n\n{}\n\n{}".format(user, grades, user.grade_page_data))
 
         logout()
 
