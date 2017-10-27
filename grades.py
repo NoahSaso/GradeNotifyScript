@@ -766,10 +766,10 @@ def do_task(user, inDatabase):
         global dont_send_failed_login_email
         if not login(user, inDatabase):
             print("Log in failed for {}".format(user))
-            if not dont_send_failed_login_email:
+            if dont_send_failed_login_email:
                 # send_admin_email("GN | Login failed", "{}".format(user))
                 # print('didnt send admin email but login failed')
-            else:
+            # else:
                 dont_send_failed_login_email = False
             return
         
