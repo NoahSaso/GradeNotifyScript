@@ -827,7 +827,8 @@ def do_task(user, inDatabase, last=False):
         logging.warning("Exception: %s" % full)
         send_admin_email("GN | do_task try failed", "{}\n\n{}".format(user, full))
     finally:
-        print("----- Total Time: %s seconds, Average Time per User: %s seconds -----" % ((time.time() - start_time_total), (time.time() - start_time_total)/count_total))
+        if last:
+            print("----- Total Time: %s seconds, Average Time per User: %s seconds -----" % ((time.time() - start_time_total), (time.time() - start_time_total)/count_total))
 
 if __name__ == '__main__':
     main()
