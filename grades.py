@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import time
+# import time
 import yaml
 import json
 import cookielib
@@ -104,7 +104,6 @@ parser.add_option('-i', '--infinitecampus', action='store', dest='infinitecampus
 # Example argument: '{"table": "TABLE_HERE", "method": "add_column", "name": "NAME_HERE", "type": "TYPE_HERE"}'
 parser.add_option('-d', '--database', action='store', dest='database', metavar='DICTIONARY', help='Modify database')
 parser.add_option('-j', '--json', action='store_true', dest='json', help='Output json')
-parser.add_option('-w', '--whisper', action='store_true', dest='whisper', help='do not print student grades even if dev')
 parser.add_option('-t', '--transfer', action='store', dest='transfer', metavar='DICTIONARY', help='Transfer encryptions and users')
 
 (options, args) = parser.parse_args()
@@ -477,7 +476,7 @@ def login(user, shouldDecrypt):
         print("Could not connect to Infinite Campus' servers. Please try again later when it is back up so your credentials can be verified.")
         dont_send_failed_login_email = True
     except Exception:
-        print("Logging in failed")
+        print("[{}] Logging in failed".format(user))
         full = traceback.format_exc()
         logging.warning("Exception: %s" % full)
         send_admin_email("GN | login try failed", "{}\n\n{}".format(user, full))
@@ -492,7 +491,7 @@ def logout():
     except KeyboardInterrupt:
         sys.exit()
     except Exception:
-        print("Logging out failed")
+        # print("Logging out failed")
         full = traceback.format_exc()
         logging.warning("Exception: %s" % full)
         # send_admin_email("GN | logout try failed", "{}\n\n{}".format(curr_user, full))
@@ -738,7 +737,7 @@ def main():
                     print("Please include the encryption salt")
                 else:
                     # Get users
-                    start_time_total = time.time()
+                    # start_time_total = time.time()
                     # count_total = 0
                     for user in User.get_all_users('WHERE enabled = 1'):
                         Process(target=do_task, args=(user, True)).start()
@@ -762,19 +761,19 @@ def main():
 
 def do_task(user, inDatabase):
     try:
-        start_time = time.time()
-        print("Logging in {}...".format(user))
+        # start_time = time.time()
+        print("[{}] Logging in...".format(user))
         global dont_send_failed_login_email
         if not login(user, inDatabase):
-            print("Log in failed, probably wrong credentials")
+            print("Log in failed for {}".format(user))
             if not dont_send_failed_login_email:
                 # send_admin_email("GN | Login failed", "{}".format(user))
-                print('didnt send admin email but login failed')
+                # print('didnt send admin email but login failed')
             else:
                 dont_send_failed_login_email = False
             return
         
-        print("Grabbing grades of schedule from semester...")
+        # print("Grabbing grades of schedule from semester...")
         user.create_table_if_not_exists()
         grades = get_all_grades(user)
         if grades:
@@ -783,7 +782,7 @@ def do_task(user, inDatabase):
             final_grades = get_grade_string(grades, inDatabase, options.go, user)
             if final_grades:
                 
-                print("Got them")
+                # print("Got them")
                 if inDatabase:
                     user.save_grades_to_database(grades)
                 
@@ -799,21 +798,20 @@ def do_task(user, inDatabase):
                                 send_grade_email(recipient['address'], recipient['type'] == 'phone', final_grades[1])
                     else:
                         send_grade_email(user.email, False, final_grades[1])
-
-                if final_grades[1] and not options.whisper:
-                	dev_print(final_grades[1])
+                    print("[{}] Finished, sent".format(user))
                 else:
-                    print("Nothing changed")
+                    print("[{}] Finished, not sending (grades changed: {})".format(user, final_grades[0]))
+
             else:
-                print("Did not get grade_string")
+                print("[{}] Finished, did not get grade string".format(user))
                 send_admin_email("GN | not grade_string", "{}\n\n{}".format(user, final_grades))
         else:
-            print("Did not get grades")
+            print("[{}] Finished, did not get grades".format(user))
             send_admin_email("GN | not grades", "{}\n\n{}\n\n{}".format(user, grades, user.grade_page_data))
 
         logout()
 
-        print("----- Took %s seconds -----" % (time.time() - start_time))
+        # print("----- Took %s seconds -----" % (time.time() - start_time))
     except KeyboardInterrupt:
         sys.exit()
     except Exception:
