@@ -652,6 +652,20 @@ def main():
                     if options.valid:
                         print("0")
                     elif options.modify:
+                        if student_id == 'all':
+                            if all (k in user_data for k in ("key", "value")):
+                                for user in User.get_all_users(''):
+                                    new_value = user_data['value']
+                                    if user_data['key'] == 'password':
+                                        if options.z:
+                                            new_value = encrypted(new_value)
+                                        else:
+                                            print("Please include the encryption salt")
+                                            return
+                                    user.update(user_data['key'], new_value)
+                                    print("Updated {} for {}".format(user_data['key'], user))
+                            else:
+                                print("Please provide student_id, key, and value")
                         print("Could not find user with student_id '{}'".format(student_id))
         # argument is dictionary with username and student_id
         elif options.add or options.infinitecampus:
