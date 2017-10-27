@@ -30,6 +30,9 @@ import base64
 from Crypto import Random
 from Crypto.Cipher import AES
 
+start_time_total = 0
+count_total = 0
+
 BS = 16
 pad = lambda s: s + (BS - len(s) % BS) * chr(BS - len(s) % BS)
 unpad = lambda s : s[0:-ord(s[-1])]
@@ -737,12 +740,16 @@ def main():
                     print("Please include the encryption salt")
                 else:
                     # Get users
-                    # start_time_total = time.time()
-                    # count_total = 0
-                    for user in User.get_all_users('WHERE enabled = 1'):
+                    global start_time_total
+                    global count_total
+                    start_time_total = time.time()
+                    count_total = 0
+                    all_enabled_users = User.get_all_users('WHERE enabled = 1')
+                    for user in all_enabled_users[:-1]:
                         Process(target=do_task, args=(user, True)).start()
                         # do_task(user, True)
-                        # count_total += 1
+                        count_total += 1
+                    Process(target=do_task, args=(user, True), kwargs={'last':True}).start()
                     # print("----- Average Time per User: %s seconds -----" % ((time.time() - start_time_total)/count_total))
 
             # Else if specified check user
@@ -759,7 +766,7 @@ def main():
         logging.warning("Exception: %s" % full)
         send_admin_email("GN | Main try failed", "{}".format(full))
 
-def do_task(user, inDatabase):
+def do_task(user, inDatabase, last=False):
     try:
         # start_time = time.time()
         print("[{}] Logging in...".format(user))
@@ -819,6 +826,8 @@ def do_task(user, inDatabase):
         full = traceback.format_exc()
         logging.warning("Exception: %s" % full)
         send_admin_email("GN | do_task try failed", "{}\n\n{}".format(user, full))
+    finally:
+        print("----- Total Time: %s seconds, Average Time per User: %s seconds -----" % ((time.time() - start_time_total), (time.time() - start_time_total)/count_total))
 
 if __name__ == '__main__':
     main()
