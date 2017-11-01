@@ -137,7 +137,8 @@ class Course:
             return False
     
     def save(self):
-        sqlc.execute("INSERT OR REPLACE INTO '{}' VALUES ('{}', '{}', '{}', '{}')".format(self.user.get_table_name(), self.name, self.grade, self.letter, json.dumps(self.last_assignment)))
+	# replace single quote with two single quotes for sql entry
+        sqlc.execute("INSERT OR REPLACE INTO '{}' VALUES ('{}', '{}', '{}', '{}')".format(self.user.get_table_name(), self.name, self.grade, self.letter, json.dumps(self.last_assignment).replace("'","''")))
         conn.commit()
 
     def diff_grade(self):
