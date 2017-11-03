@@ -759,7 +759,7 @@ def main():
                     for t in threads:
                         t.join()
                     final_time = time.time()
-                    print("----- Total Time: %s seconds, Average Time per User: %s seconds -----" % ((final_time - start_time_total), (final_time - start_time_total)/count_total))
+                    print("----- Total Time: %.5f seconds, Average Time per User: %.5f seconds -----" % ((final_time - start_time_total), (final_time - start_time_total)/count_total))
                     # print("----- Average Time per User: %s seconds -----" % ((time.time() - start_time_total)/count_total))
 
             # Else if specified check user
