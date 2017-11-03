@@ -747,10 +747,10 @@ def main():
                 else:
                     # Get users
                     start_time_total = time.time()
-                    # start at 1 because in for loop we exclude last user
-                    count_total = 1
+                    count_total = 0
                     threads = []
                     for user in User.get_all_users('WHERE enabled = 1', sqlc):
+                        # for x in range(10):
                         count_total += 1
                         t = UserThread(user, True)
                         t.start()
