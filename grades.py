@@ -826,6 +826,7 @@ def main():
                 user.create_table_if_not_exists(pool)
         else:
             # If not checking single
+            # THIS IS MAIN CODE SCRAPER
             if not options.check:
                 # If forgot encryption salt, tell them
                 if not options.z:
@@ -841,9 +842,11 @@ def main():
                         users = all_users[(i*32):((i*32+32) if (i*32+32) < all_users_count else all_users_count)]
                         threads = []
                         for user in users:
+                            # starting UserThread runs do_task, class definition at the top
                             t = UserThread(user, True)
                             t.start()
                             threads.append(t)
+                        # Wait until all 32 threads finish before moving on to the next 'i' in the how_many range (chunk of 32 students)
                         for t in threads:
                             t.join()
                             # do_task(user, True)
@@ -891,12 +894,15 @@ def do_task(user, inDatabase):
                     user.save_grades_to_database(grades, pool)
                 
                 # If grade changed and no send email is false, send email
+                # IF USED ./grades.py -z salt -g 'student_id:send', :1 means send always, :0 means don't send
                 if options.go:
                     should_send = options.go.split(':')[1] == '1' if ':' in options.go else True
                 else:
+                    # send if user email passed (from options.check -c argument) or if user is part of database and grade changed (final_grades[0] boolean) or options.loud always send
                     should_send = (user.email and not inDatabase) or (inDatabase and (options.loud or (final_grades[0] and not options.quiet)))
                 if should_send:
                     if inDatabase:
+                        # send to all enabled recipients: i.e. phone, email, parents, etc.
                         for recipient in user.recipients:
                             if recipient['enabled'] == 1:
                                 send_grade_email(recipient['address'], recipient['type'] == 'phone', final_grades[1])
