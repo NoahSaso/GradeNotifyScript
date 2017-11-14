@@ -294,28 +294,6 @@ class MySQLPool(object):
             self.close(conn, cursor)
             return res
 
-    def executemany(self, sql, args, commit=False):
-        """
-        Execute with many args. Similar with executemany() function in pymysql.
-        args should be a sequence.
-        :param sql: sql clause
-        :param args: args
-        :param commit: commit or not.
-        :return: if commit, return None, else, return result
-        """
-        # get connection form connection pool instead of create one.
-        conn = self.pool.get_connection()
-        cursor = conn.cursor()
-        cursor.executemany(sql, args)
-        if commit is True:
-            conn.commit()
-            self.close(conn, cursor)
-            return None
-        else:
-            res = cursor.fetchall()
-            self.close(conn, cursor)
-            return res
-
 pool = None
 
 def setup():
@@ -635,7 +613,7 @@ def send_admin_email(subject, message):
         utils.send_email(cfg['smtp_address'], cfg['smtp_username'], cfg['smtp_password'], 'noahsaso@gmail.com', subject, message)
 
 def main():
-    # Run every 10 minutes with a cron job (*/10 * * * * /path/to/scraper_auto.py)
+    # Run every 10 minutes with a cron job (*/10 * * * * /path/to/grades.py)
     try:
 
         setup()
@@ -823,16 +801,21 @@ def main():
                     # Get users
                     start_time_total = time.time()
                     all_users = User.get_all_users('WHERE enabled = 1', pool)
-                    threads = []
-                    for user in all_users:
-                        t = UserThread(user, True)
-                        t.start()
-                        threads.append(t)
-                    for t in threads:
-                        t.join()
-                        # do_task(user, True)
+                    all_users_count = len(all_users)
+                    how_many = int(math.ceil(all_users_count/32.0))
+                    for i in range(how_many):
+                        # take each chunk of 32 students so mysql pool is not exhausted
+                        users = all_users[(i*32):((i*32+32) if (i*32+32) < all_users_count else all_users_count)]
+                        threads = []
+                        for user in users:
+                            t = UserThread(user, True)
+                            t.start()
+                            threads.append(t)
+                        for t in threads:
+                            t.join()
+                            # do_task(user, True)
                     final_time = time.time()
-                    print("----- Total Time: %.5f seconds, Average Time per User: %.5f seconds -----" % ((final_time - start_time_total), (final_time - start_time_total)/len(all_users)))
+                    print("----- Total Time: %.5f seconds, Average Time per User: %.5f seconds -----" % ((final_time - start_time_total), (final_time - start_time_total)/all_users_count))
                     # print("----- Average Time per User: %s seconds -----" % ((time.time() - start_time_total)/count_total))
 
             # Else if specified check user
