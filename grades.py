@@ -81,7 +81,7 @@ dont_send_failed_login_email = False
 NON_DECIMAL = re.compile(r'[^\d.]+')
 
 # THE DEFAULT RUN TO SCRAPE ALL IS NO OPTIONS, JUST THE SALT
-# THE REST OF THESE OPTIONS IS EITHER FOR THE WEB PORTAL SIGN UP OR MY MANIPULATION OF THE DATABASE OR TESTING
+# THE REST OF THESE OPTIONS ARE EITHER FOR THE WEB PORTAL SIGN UP OR MY MANIPULATION OF THE DATABASE OR TESTING
 parser = OptionParser(description='Scrapes grades from infinite campus website')
 
 # USER
@@ -127,6 +127,7 @@ class Course:
         self.last_assignment = last_assignment
         self.user = user
 
+    # Get course object from database by its name
     @classmethod
     def course_from_name(self, user, name, pool):
         course_row = pool.execute("SELECT * FROM {} WHERE name = '{}'".format(user.get_table_name(), name), one=True)
@@ -139,10 +140,12 @@ class Course:
         else:
             return False
     
+    # Save course into user database
     def save(self, pool):
         # replace single quote with two single quotes for sql entry
         pool.execute("REPLACE INTO {} VALUES ('{}', '{}', '{}', '{}')".format(self.user.get_table_name(), self.name, self.grade, self.letter, json.dumps(self.last_assignment).replace("'","''").replace('"', '\\"')), commit=True)
 
+    # Get the grade difference bewteen the database grade and current grade of the course object
     def diff_grade(self, pool):
         """returns the difference between the current class grade
         and the last one
@@ -165,10 +168,12 @@ class User:
             users.append(User.from_dict(user_row))
         return users
     
+    # Setups account table
     @classmethod
     def setup_accounts_table(self, pool):
         pool.execute("CREATE TABLE IF NOT EXISTS {}.accounts (username VARCHAR(50), name VARCHAR(50), password TEXT, enabled INTEGER, student_id VARCHAR(8), recipients TEXT, UNIQUE KEY (student_id)) CHARSET=utf8;".format(cfg['mysql']['db']), commit=True)
 
+    # Gets user object from database by student ID
     @classmethod
     def from_student_id(self, student_id, pool):
         User.setup_accounts_table(pool)
@@ -178,6 +183,7 @@ class User:
         else:
             return User.from_dict(user_row)
     
+    # Creates user object from dictionary values
     @classmethod
     def from_dict(self, row):
         user = self()
@@ -190,26 +196,31 @@ class User:
         user.recipients = json.loads(row.get('recipients', '[]') or '[]')
         return user
     
+    # Check if student id exists in database
     @classmethod
     def exists(self, student_id, pool):
         User.setup_accounts_table(pool)
         rows = pool.execute("SELECT COUNT(*) FROM {}.accounts WHERE student_id = '{}'".format(cfg['mysql']['db'], student_id), one=True)['COUNT(*)']
         return rows > 0
     
+    # Gets constant table name for user grades
     def get_table_name(self):
         return "{}.user_{}".format(cfg['mysql']['db'], self.student_id)
     
+    # Creates user account in database
     def create_account(self, pool):
         User.setup_accounts_table(pool)
         pool.execute("INSERT INTO {}.accounts VALUES ('{}', '{}', '{}', '{}', '{}', '{}')".format(cfg['mysql']['db'], self.username, self.name, self.password, 1, self.student_id, json.dumps(self.recipients)), commit=True)
         self.create_table_if_not_exists(pool)
     
+    # Remove account from database
     @classmethod
     def remove_account(self, student_id, pool):
         user = User.from_student_id(student_id, pool)
         pool.execute("DELETE FROM {}.accounts WHERE student_id = '{}'".format(cfg['mysql']['db'], student_id), commit=True)
         return user
     
+    # Check if correct password for database entry
     @classmethod
     def valid_password(self, student_id, password, pool):
         user = User.from_student_id(student_id, pool)
@@ -219,21 +230,26 @@ class User:
         else:
             return False
     
+    # Create user grades table
     def create_table_if_not_exists(self, pool):
         pool.execute("CREATE TABLE IF NOT EXISTS {} (name VARCHAR(60), grade FLOAT(6,3), letter VARCHAR(2), last_assignment TEXT, UNIQUE KEY (name)) CHARSET=utf8;".format(self.get_table_name()), commit=True)
     
+    # Update user column
     def update(self, key, value, pool):
         User.setup_accounts_table(pool)
         pool.execute("UPDATE {}.accounts SET {} = '{}' WHERE student_id = '{}'".format(cfg['mysql']['db'], key, value, self.student_id), commit=True)
         setattr(self, key, value)
 
+    # Save all grades to database for user
     def save_grades_to_database(self, grades, pool):
         for course in grades:
             course.save(pool)
 
+    # String for logging users
     def __str__(self):
         return "{} ({} -- {}) [{}]".format(self.name, self.username, self.student_id, self.enabled)
     
+    # Get json output of user object
     def json(self):
         return {'enabled': self.enabled, 'student_id': self.student_id, 'username': self.username, 'name': self.name, 'recipients': self.recipients}
 
@@ -303,6 +319,7 @@ class MySQLPool(object):
 
 pool = None
 
+# Setup mysql pool and config objects
 def setup():
     """general setup commands"""
     
@@ -321,6 +338,7 @@ def setup():
     global pool
     pool = MySQLPool(dbconfig)
 
+# Create browser object
 def get_browser():
     br = mechanize.Browser()
     
@@ -342,10 +360,12 @@ def get_browser():
 
     return br
 
+# Get base IC url from config
 def get_base_url():
     """returns the site's base url, taken from the login page url"""
     return cfg['login_url'].split("/campus")[0] + '/campus/'
 
+# Get portal data from IC url
 def get_portal_data(curr_user, br):
     url = 'portal/portalOutlineWrapper.xsl?x=portal.PortalOutline&contentType=text/xml&lang=en'
     school_data = br.open(get_base_url() + url)
@@ -360,6 +380,7 @@ def get_portal_data(curr_user, br):
         send_admin_email("GN | minidom parse failed", "{}\n\n{}".format(curr_user, full))
         return False
 
+# Get page URL with user specific options from IC
 def get_page_url(gradesPage, dom, curr_user):
     """returns the url of the schedule page"""
     nodes = dom.getElementsByTagName('Student')
@@ -412,6 +433,7 @@ def get_page_url(gradesPage, dom, curr_user):
         mode,
         x))
 
+# Scrape grades from IC
 def get_all_grades(curr_user, pool):
     soup = curr_user.grade_page_data
 
@@ -492,6 +514,7 @@ def get_all_grades(curr_user, pool):
             courses.append(course)
     return courses
 
+# Login user on IC login page
 def login(user, shouldDecrypt, br):
     """Logs in to the Infinite Campus at the
     address specified in the config
@@ -565,6 +588,7 @@ def login(user, shouldDecrypt, br):
     
     return False
 
+# Log out of IC
 def logout(br):
     """Logs out of Infinite Campus
     """
@@ -578,7 +602,8 @@ def logout(br):
         logging.warning("Exception: %s" % full)
         # send_admin_email("GN | logout try failed", "{}\n\n{}".format(curr_user, full))
 
-# returns array where index 0 element is grade_changed (boolean) and index 1 element is grade string
+# Creates string to print or send to student and computes changes in each grade
+# returns array where index 0 is grade_changed (boolean) and index 1 is grade string
 def get_grade_string(grades, inDatabase, showAll, curr_user, pool):
     """Extracts the grade_string"""
     final_grades = ""
@@ -611,20 +636,24 @@ def get_grade_string(grades, inDatabase, showAll, curr_user, pool):
 
     return [grade_changed, final_grades.strip()]
 
+# Sends grade email to email or phone
 def send_grade_email(email, isPhone, message):
     # print("Sending grade email to {}".format(email))
     utils.send_email(cfg['smtp_address'], cfg['smtp_username'], cfg['smtp_password'], email, '' if isPhone else 'Grade Alert', message)
 
+# Sends admin email for error reports
 def send_admin_email(subject, message):
     if not DEV_MODE:
         utils.send_email(cfg['smtp_address'], cfg['smtp_username'], cfg['smtp_password'], 'noahsaso@gmail.com', subject, message)
 
 def main():
-    # Run every 10 minutes with a cron job (*/10 * * * * /path/to/grades.py)
+    # Run every X minutes with a cron job (*/X * * * * /path/to/grades.py)
     try:
 
         setup()
         
+        # MAIN CODE IS AT THE BOTTOM OF THIS BIG IF BLOCK BECAUSE NO OPTIONS SET
+
         # move one encryption to another for specified users
         if options.transfer:
 
