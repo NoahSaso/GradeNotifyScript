@@ -80,6 +80,8 @@ dont_send_failed_login_email = False
 
 NON_DECIMAL = re.compile(r'[^\d.]+')
 
+# THE DEFAULT RUN TO SCRAPE ALL IS NO OPTIONS, JUST THE SALT
+# THE REST OF THESE OPTIONS IS EITHER FOR THE WEB PORTAL SIGN UP OR MY MANIPULATION OF THE DATABASE OR TESTING
 parser = OptionParser(description='Scrapes grades from infinite campus website')
 
 # USER
@@ -100,7 +102,6 @@ parser.add_option('-y', action='store_true', dest='createall', help='Creates dat
 # OTHER
 parser.add_option('-q', '--quiet', action='store_true', dest='quiet', help='force to not send email even if grade changed')
 parser.add_option('-o', '--loud', action='store_true', dest='loud', help='force to send email even if grade not changed')
-parser.add_option('-s', '--setup', action='store_true', dest='setup', help='Setup accounts database')
 parser.add_option('-z', '--salt', action='store', dest='z', help='Encryption salt')
 # Example argument: '{"username": "STUDENT_ID_HERE", "password": "PASSWORD_HERE"}'
 parser.add_option('-i', '--infinitecampus', action='store', dest='infinitecampus', metavar='USER_DICTIONARY', help='Check validity of infinite campus credentials')
@@ -154,8 +155,10 @@ class Course:
         return float(self.grade) - float(prev_grade)
 
 class User:
+    # Gets list of all users in database
     @classmethod
     def get_all_users(self, where_clause, pool):
+        User.setup_accounts_table(pool)
         user_rows = pool.execute("SELECT * FROM {}.accounts{}".format(cfg['mysql']['db'], " {}".format(where_clause) if where_clause else ''))
         users = []
         for user_row in user_rows:
@@ -168,6 +171,7 @@ class User:
 
     @classmethod
     def from_student_id(self, student_id, pool):
+        User.setup_accounts_table(pool)
         user_row = pool.execute("SELECT * FROM {}.accounts WHERE student_id = '{}'".format(cfg['mysql']['db'], student_id), one=True)
         if not user_row:
             return None
@@ -188,6 +192,7 @@ class User:
     
     @classmethod
     def exists(self, student_id, pool):
+        User.setup_accounts_table(pool)
         rows = pool.execute("SELECT COUNT(*) FROM {}.accounts WHERE student_id = '{}'".format(cfg['mysql']['db'], student_id), one=True)['COUNT(*)']
         return rows > 0
     
@@ -195,6 +200,7 @@ class User:
         return "{}.user_{}".format(cfg['mysql']['db'], self.student_id)
     
     def create_account(self, pool):
+        User.setup_accounts_table(pool)
         pool.execute("INSERT INTO {}.accounts VALUES ('{}', '{}', '{}', '{}', '{}', '{}')".format(cfg['mysql']['db'], self.username, self.name, self.password, 1, self.student_id, json.dumps(self.recipients)), commit=True)
         self.create_table_if_not_exists(pool)
     
@@ -217,6 +223,7 @@ class User:
         pool.execute("CREATE TABLE IF NOT EXISTS {} (name VARCHAR(60), grade FLOAT(6,3), letter VARCHAR(2), last_assignment TEXT, UNIQUE KEY (name)) CHARSET=utf8;".format(self.get_table_name()), commit=True)
     
     def update(self, key, value, pool):
+        User.setup_accounts_table(pool)
         pool.execute("UPDATE {}.accounts SET {} = '{}' WHERE student_id = '{}'".format(cfg['mysql']['db'], key, value, self.student_id), commit=True)
         setattr(self, key, value)
 
@@ -630,10 +637,7 @@ def main():
 
         br = get_browser()
 
-        if options.setup:
-            User.setup_accounts_table(pool)
-            print("Setup accounts database")
-        elif options.database:
+        if options.database:
             try:
                 data = json.loads(options.database)
                 if all (k in data for k in ("table", "method", "name", "type")):
