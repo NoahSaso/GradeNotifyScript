@@ -139,7 +139,7 @@ class Course:
             return Course(course_row['name'], float(course_row['grade']), course_row['letter'], last_assignment, user)
         else:
             return False
-    
+
     # Save course into user database
     def save(self, pool):
         # replace single quote with two single quotes for sql entry
@@ -167,7 +167,7 @@ class User:
         for user_row in user_rows:
             users.append(User.from_dict(user_row))
         return users
-    
+
     # Setups account table
     @classmethod
     def setup_accounts_table(self, pool):
@@ -182,7 +182,7 @@ class User:
             return None
         else:
             return User.from_dict(user_row)
-    
+
     # Creates user object from dictionary values
     @classmethod
     def from_dict(self, row):
@@ -195,31 +195,31 @@ class User:
         user.student_id = row['student_id']
         user.recipients = json.loads(row.get('recipients', '[]') or '[]')
         return user
-    
+
     # Check if student id exists in database
     @classmethod
     def exists(self, student_id, pool):
         User.setup_accounts_table(pool)
         rows = pool.execute("SELECT COUNT(*) FROM {}.accounts WHERE student_id = '{}'".format(cfg['mysql']['db'], student_id), one=True)['COUNT(*)']
         return rows > 0
-    
+
     # Gets constant table name for user grades
     def get_table_name(self):
         return "{}.user_{}".format(cfg['mysql']['db'], self.student_id)
-    
+
     # Creates user account in database
     def create_account(self, pool):
         User.setup_accounts_table(pool)
         pool.execute("INSERT INTO {}.accounts VALUES ('{}', '{}', '{}', '{}', '{}', '{}')".format(cfg['mysql']['db'], self.username, self.name, self.password, 1, self.student_id, json.dumps(self.recipients)), commit=True)
         self.create_table_if_not_exists(pool)
-    
+
     # Remove account from database
     @classmethod
     def remove_account(self, student_id, pool):
         user = User.from_student_id(student_id, pool)
         pool.execute("DELETE FROM {}.accounts WHERE student_id = '{}'".format(cfg['mysql']['db'], student_id), commit=True)
         return user
-    
+
     # Check if correct password for database entry
     @classmethod
     def valid_password(self, student_id, password, pool):
@@ -229,11 +229,11 @@ class User:
             return user if password == password_row else False
         else:
             return False
-    
+
     # Create user grades table
     def create_table_if_not_exists(self, pool):
         pool.execute("CREATE TABLE IF NOT EXISTS {} (name VARCHAR(60), grade FLOAT(6,3), letter VARCHAR(2), last_assignment TEXT, UNIQUE KEY (name)) CHARSET=utf8;".format(self.get_table_name()), commit=True)
-    
+
     # Update user column
     def update(self, key, value, pool):
         User.setup_accounts_table(pool)
@@ -248,14 +248,14 @@ class User:
     # String for logging users
     def __str__(self):
         return "{} ({} -- {}) [{}]".format(self.name, self.username, self.student_id, self.enabled)
-    
+
     # Get json output of user object
     def json(self):
         return {'enabled': self.enabled, 'student_id': self.student_id, 'username': self.username, 'name': self.name, 'recipients': self.recipients}
 
 class MySQLPool(object):
     """
-    create a pool when connect mysql, which will decrease the time spent in 
+    create a pool when connect mysql, which will decrease the time spent in
     request connection, create connection and close connection.
     """
     def __init__(self, dbconfig, pool_name="mypool",
@@ -265,8 +265,8 @@ class MySQLPool(object):
 
     def create_pool(self, pool_name="mypool", pool_size=32):
         """
-        Create a connection pool, after created, the request of connecting 
-        MySQL could get a connection from this pool instead of request to 
+        Create a connection pool, after created, the request of connecting
+        MySQL could get a connection from this pool instead of request to
         create a connection.
         :param pool_name: the name of pool, default is "mypool"
         :param pool_size: the size of pool, default is 3
@@ -282,16 +282,16 @@ class MySQLPool(object):
     def close(self, conn, cursor):
         """
         A method used to close connection of mysql.
-        :param conn: 
-        :param cursor: 
-        :return: 
+        :param conn:
+        :param cursor:
+        :return:
         """
         cursor.close()
         conn.close()
 
     def execute(self, sql, one=False, args=None, commit=False):
         """
-        Execute a sql, it could be with args and with out args. The usage is 
+        Execute a sql, it could be with args and with out args. The usage is
         similar with execute() function in module pymysql.
         :param sql: sql clause
         :param args: args need by sql clause
@@ -322,12 +322,12 @@ pool = None
 # Setup mysql pool and config objects
 def setup():
     """general setup commands"""
-    
+
     # Setup config
     global cfg
     with open(CONFIG_FILE_NAME, 'r') as cfgfile:
         cfg = yaml.load(cfgfile)
-    
+
     dbconfig = {
         "host": cfg['mysql']['host'],
         "port": cfg['mysql']['port'],
@@ -341,7 +341,7 @@ def setup():
 # Create browser object
 def get_browser():
     br = mechanize.Browser()
-    
+
     # Cookie Jar
     cj = cookielib.LWPCookieJar()
     br.set_cookiejar(cj)
@@ -413,7 +413,7 @@ def get_page_url(gradesPage, dom, curr_user):
     calendar_id = node.getAttribute('calendarID')
     structure_id = node.getAttribute('structureID')
     calendar_name = node.getAttribute('calendarName')
-    
+
     if gradesPage:
         mode = 'grades'
         x = 'portal.PortalGrades'
@@ -474,19 +474,19 @@ def get_all_grades(curr_user, pool):
                     score = NON_DECIMAL.sub('', cont[9].getText().strip())
                     total = NON_DECIMAL.sub('', cont[11].getText().strip())
                     percent = NON_DECIMAL.sub('', cont[13].getText().strip())
-                    
+
                     assignments[course_name].append({ 'assignment_name': assignment_name, 'score': score, 'total': total, 'percent': percent })
 
                     # print("{} -- {} [{}/{}] ({})".format(course_name, assignment_name, score, total, percent))
-            
+
             course = Course.course_from_name(curr_user, name, pool)
 
             if not course:
                 course = Course(name, float(grade), letter, {}, curr_user)
-            
+
             course.grade = grade
             course.letter = letter
-            
+
             if name in assignments:
                 course_assignments = assignments[name]
                 new_assignments = []
@@ -503,7 +503,7 @@ def get_all_grades(curr_user, pool):
                     else:
                         # specific assignment grade name not found, take all occurrences
                         new_assignments = course_assignments
-                
+
                 course.last_assignment = course_assignments[0]
                 course.new_assignments = new_assignments
 
@@ -574,7 +574,7 @@ def login(user, shouldDecrypt, br):
                     return not not grade_page_data
 
         dont_send_failed_login_email = False
-        
+
     except KeyboardInterrupt:
         sys.exit()
     except (mechanize.HTTPError, mechanize.URLError) as e:
@@ -585,7 +585,7 @@ def login(user, shouldDecrypt, br):
         full = traceback.format_exc()
         logging.warning("Exception: %s" % full)
         send_admin_email("GN | login try failed", "{}\n\n{}".format(user, full))
-    
+
     return False
 
 # Log out of IC
@@ -651,7 +651,7 @@ def main():
     try:
 
         setup()
-        
+
         # MAIN CODE IS AT THE BOTTOM OF THIS BIG IF BLOCK BECAUSE NO OPTIONS SET
 
         # move one encryption to another for specified users
@@ -755,7 +755,7 @@ def main():
                 else:
                     if User.exists(student_id, pool):
                         if options.add:
-                            print("A user with student_id '{}' already exists. Please use the -e flag instead".format(student_id))
+                            print("A user with student_id '{}' already exists. Please use the -m flag instead".format(student_id))
                     elif options.add:
                         if all (k in user_data for k in ("name", "password")):
                             # If forgot encryption salt, tell them
@@ -879,7 +879,7 @@ def do_task(user, inDatabase):
             # else:
                 dont_send_failed_login_email = False
             return
-        
+
         # print("Grabbing grades of schedule from semester...")
         user.create_table_if_not_exists(pool)
         grades = get_all_grades(user, pool)
@@ -888,11 +888,11 @@ def do_task(user, inDatabase):
             # array: [ grade_changed, string ]
             final_grades = get_grade_string(grades, inDatabase, options.go, user, pool)
             if final_grades:
-                
+
                 # print("Got them")
                 if inDatabase:
                     user.save_grades_to_database(grades, pool)
-                
+
                 # If grade changed and no send email is false, send email
                 # IF USED ./grades.py -z salt -g 'student_id:send', :1 means send always, :0 means don't send
                 if options.go:
